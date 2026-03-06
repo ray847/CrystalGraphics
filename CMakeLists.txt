@@ -18,9 +18,13 @@ add_library(CrystalGraphics)
 target_sources(CrystalGraphics
   PRIVATE
     src/graphics.cpp
+    src/error.cpp
     src/environment.cpp
-    src/error_stack.h
+    src/scene.cpp
+    src/api.cpp
+    src/view.cpp
     src/webgpu_implementation.cpp
+    src/error_stack.h
 )
 target_include_directories(CrystalGraphics
   PUBLIC

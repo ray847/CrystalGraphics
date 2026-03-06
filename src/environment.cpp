@@ -10,6 +10,7 @@
 #include "CrystalGraphics/environment.h"
 #include "CrystalGraphics/error.h"
 #include "error_stack.h"
+#include "global.h"
 
 namespace crystal::graphics {
 
@@ -21,9 +22,6 @@ std::expected<void, Error> InitWGPU();
 std::expected<void, Error> TermWGPU();
 std::expected<void, Error> SyncWGPU();
 
-namespace global {
-bool env_status = false;
-} // namespace global
 /**
  * Initialize glfw & webgpu.
  */
@@ -54,9 +52,6 @@ bool EnvStatus() {
   return global::env_status;
 }
 
-namespace global {
-GLFWwindow* glfw_window;
-}
 std::expected<void, Error> InitGLFW() {
   glfwSetErrorCallback([](int error_code, const char* msg) {
     global::error_stack.Push(
@@ -88,11 +83,6 @@ std::expected<void, Error> SyncGLFW() {
   return {};
 }
 
-namespace global {
-wgpu::raii::Instance wgpu_instance;
-wgpu::raii::Device wgpu_device;
-wgpu::raii::Surface wgpu_surface;
-} // namespace global
 std::expected<void, Error> InitWGPU() {
   global::wgpu_instance = wgpu::createInstance();
   global::wgpu_surface = wgpu::Surface{ glfwCreateWindowWGPUSurface(
@@ -152,13 +142,16 @@ std::expected<void, Error> InitWGPU() {
   surface_config.viewFormatCount = 0;
   surface_config.viewFormats = nullptr;
   surface_config.device = *global::wgpu_device;
-  surface_config.presentMode = WGPUPresentMode_Fifo;
-  surface_config.alphaMode = WGPUCompositeAlphaMode_Auto;
-
-  wgpuSurfaceConfigure(*global::wgpu_surface, &surface_config);
+  //surface_config.presentMode = WGPUPresentMode_Fifo; //< with VSync
+  surface_config.presentMode = WGPUPresentMode_Immediate; //< no vsync
+  surface_config.alphaMode = wgpu::CompositeAlphaMode::Auto;
+  global::wgpu_surface->configure(surface_config);
+  /* get queue. */
+  global::wgpu_queue = global::wgpu_device->getQueue();
   return {};
 }
 std::expected<void, Error> TermWGPU() {
+  global::wgpu_queue = wgpu::raii::Queue{nullptr};
   global::wgpu_surface->unconfigure();
   global::wgpu_surface = wgpu::raii::Surface{ nullptr };
   if (auto e = global::error_stack.Pop()) return std::unexpected(*e);
