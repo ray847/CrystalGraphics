@@ -1,15 +1,11 @@
 #ifndef CRYSTALGRAPHICS_ERROR_H_
 #define CRYSTALGRAPHICS_ERROR_H_
 
-#include <stacktrace>
 #include <string>
 
 namespace crystal::graphics  {
 
-struct Error {
-  std::string msg;
-  std::stacktrace stacktrace = std::stacktrace::current();
-};
+using Error = std::string;
 
 } // namespace crystal::graphics
 

@@ -14,7 +14,7 @@ class ErrorStack {
   void Push(Error e) {
     if (last_error_) [[unlikely]]
       throw std::runtime_error(std::format(
-          "Unhandled Error:\n{}{}", last_error_->msg, last_error_->stacktrace));
+          "Unhandled Error:\n{}", *last_error_));
     last_error_ = e;
   }
   std::optional<Error> Pop() {

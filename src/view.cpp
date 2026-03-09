@@ -43,17 +43,21 @@ std::expected<void, Error> View(const Scene& scene) {
       global::wgpu_device->createCommandEncoder(encoder_desc);
   /* Render Pass */
   wgpu::RenderPassDescriptor render_pass_desc = wgpu::Default;
-  wgpu::RenderPassColorAttachment color_attachment = wgpu::Default;
-  color_attachment.view = *target_view;
-  color_attachment.loadOp = wgpu::LoadOp::Clear;
-  color_attachment.storeOp = wgpu::StoreOp::Store;
-  color_attachment.clearValue = wgpu::Color{ 0.0f, 0.5f, 0.8f, 1.0f };
+  auto color_attachment = [&] -> wgpu::RenderPassColorAttachment {
+    wgpu::RenderPassColorAttachment color_attachment = wgpu::Default;
+    color_attachment.view = *target_view;
+    color_attachment.loadOp = wgpu::LoadOp::Clear;
+    color_attachment.storeOp = wgpu::StoreOp::Store;
+    color_attachment.clearValue = wgpu::Color{ 0.0f, 0.5f, 0.8f, 1.0f };
+    return color_attachment;
+  }();
   render_pass_desc.colorAttachmentCount = 1;
   render_pass_desc.colorAttachments = &color_attachment;
   wgpu::raii::RenderPassEncoder render_pass =
       encoder->beginRenderPass(render_pass_desc);
+  render_pass->setPipeline(*global::wgpu_render_pipeline);
+  render_pass->draw(3, 1, 0, 0);
   render_pass->end();
-
   /* Command Buffer */
   wgpu::CommandBufferDescriptor command_buffer_desc = wgpu::Default;
   command_buffer_desc.label =

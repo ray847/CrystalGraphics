@@ -32,7 +32,7 @@ target_include_directories(CrystalGraphics
 )
 target_link_libraries(CrystalGraphics
   PUBLIC
-    stdc++exp
+    CrystalBase
   PRIVATE
     glfw
     webgpu
