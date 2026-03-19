@@ -27,11 +27,6 @@ class ErrorStack {
   std::optional<Error> last_error_;
 };
 
-/* Global Instance */
-namespace global {
-inline ErrorStack error_stack{};
-} // namespace global
-
 } // namespace crystal::graphics
 
 #endif

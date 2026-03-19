@@ -25,10 +25,33 @@ target_sources(CrystalGraphics
     src/view.cpp
     src/webgpu_implementation.cpp
     src/error_stack.h
+    src/glfw/global.h
+    src/glfw/environment.h
+    src/glfw/environment.cpp
+    src/wgpu/global.h
+    src/wgpu/environment.h
+    src/wgpu/environment.cpp
+    src/wgpu/view.cpp
+    src/wgpu/util.h
+    src/wgpu/instance.cpp
+    src/wgpu/surface.cpp
+    src/wgpu/surface_texture.cpp
+    src/wgpu/adapter.cpp
+    src/wgpu/device.cpp
+    src/wgpu/compute.cpp
+    src/wgpu/render.cpp
+    src/wgpu/queue.cpp
+    src/wgpu/command.cpp
 )
 target_include_directories(CrystalGraphics
   PUBLIC
-    ${CMAKE_CURRENT_SOURCE_DIR}/include
+    # When building the project, use the local include directory
+    $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/include>
+    # When installed, consumers will look in the standard install include directory
+    $<INSTALL_INTERFACE:include>
+  PRIVATE
+    # Allow internal .cpp files to easily find internal .hpp files in the src/ folder
+    ${CMAKE_CURRENT_SOURCE_DIR}
 )
 target_link_libraries(CrystalGraphics
   PUBLIC
