@@ -23,11 +23,11 @@ target_sources(CrystalGraphics
     src/scene.cpp
     src/api.cpp
     src/view.cpp
-    src/webgpu_implementation.cpp
     src/error_stack.h
     src/glfw/global.h
     src/glfw/environment.h
     src/glfw/environment.cpp
+    src/wgpu/webgpu_implementation.cpp
     src/wgpu/global.h
     src/wgpu/environment.h
     src/wgpu/environment.cpp

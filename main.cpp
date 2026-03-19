@@ -28,7 +28,7 @@ int main() {
       std::cerr << sync_res.error() << std::endl;
       abort();
     }
-    //counter++;
+    counter++;
   }
   auto term_res = crystal::graphics::EnvTerm();
   if (!term_res) {

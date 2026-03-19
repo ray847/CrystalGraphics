@@ -58,7 +58,8 @@ class Env {
       compute_bindgroup_(std::move(compute_bindgroup)),
       compute_pipeline_(std::move(compute_pipeline)),
       render_bindgroup_(std::move(render_bindgroup)),
-      render_pipeline_(std::move(render_pipeline)) {
+      render_pipeline_(std::move(render_pipeline)),
+      queue_(std::move(queue)) {
   }
   /* Builder Function */
   friend std::expected<Env, Error> CreateEnv(GLFWwindow* window);

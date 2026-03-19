@@ -119,11 +119,16 @@ std::expected<void, Error> EncodeComputePass(::wgpu::CommandEncoder& encoder,
       /* bindgroup */ bindgroup,
       /* dynamic offset count */ 0,
       /* dynamic offsets */ nullptr);
-  uint32_t invocation_count = 640 * 480;
-  uint32_t workgroup_size = 16 * 16 * 1;
-  uint32_t workgroup_count =
-      std::ceil(static_cast<double>(invocation_count) / workgroup_size);
-  compute_pass_encoder->dispatchWorkgroups(workgroup_count, 1, 1);
+  uint32_t width = 640;
+  uint32_t height = 480;
+  uint32_t workgroup_size_x = 16;
+  uint32_t workgroup_size_y = 16;
+  uint32_t workgroup_count_x =
+      std::ceil(static_cast<double>(width) / workgroup_size_x);
+  uint32_t workgroup_count_y =
+      std::ceil(static_cast<double>(height) / workgroup_size_y);
+  compute_pass_encoder->dispatchWorkgroups(
+      workgroup_count_x, workgroup_count_y, 1);
   compute_pass_encoder->end();
   if (auto e = global::error_stack.Pop()) return std::unexpected(*e);
   return {};

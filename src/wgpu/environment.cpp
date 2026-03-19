@@ -83,6 +83,8 @@ std::expected<void, Error> Env::Sync() {
   if (!instance_)
     return std::unexpected(Error{ "WebGPU environment already terminated." });
   instance_->processEvents();
+  if (surface_)
+    surface_->present();
   if (auto error = global::error_stack.Pop()) return std::unexpected(*error);
   return {};
 }

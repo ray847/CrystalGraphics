@@ -13,7 +13,7 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
     vec4f(
       f32(coords.x) / f32(dimensions.x),
       f32(coords.y) / f32(dimensions.y),
-      f32(coords.x + coords.y) / f32(dimensions.x + dimensions.y),
+      0.0f,
       1.0f
     )
   );
