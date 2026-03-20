@@ -1,7 +1,8 @@
-#include <CrystalGraphics/graphics.h>
-
+#include <cmath>
 #include <chrono>
 #include <iostream>
+
+#include <CrystalGraphics/graphics.h>
 
 #include "include/CrystalGraphics/scene.h"
 
@@ -11,18 +12,23 @@ int main() {
     std::cerr << init_res.error() << std::endl;
     abort();
   }
-  /* Run for 1 seconds. */
+  /* Run for some seconds. */
   crystal::graphics::Scene scene{};
   uint64_t counter = 0;
   auto st = std::chrono::high_resolution_clock::now();
   while (std::chrono::high_resolution_clock::now() - st
          < std::chrono::seconds(1)) {
-    auto view_res = crystal::graphics::View(scene,
-                                            {
-                                                .position = { 0, 0, 0 },
-                                                .direction = { 1, 0, 0 },
-                                                .viewport = { 0.640, 0.480 }
-    });
+    float angle = (float)std::chrono::duration_cast<std::chrono::milliseconds>(
+                      std::chrono::high_resolution_clock::now() - st)
+                      .count()
+                / 1000;
+    float dis = 8.0f;
+    crystal::graphics::Camera camera{
+      .position = { dis * std::cos(angle), dis * std::sin(angle), 0 },
+      .direction = { -std::cos(angle), -std::sin(angle), 0 },
+      .viewport = { 0.640, 0.480 }
+    };
+    auto view_res = crystal::graphics::View(scene, camera);
     std::cout << "\rLoop: " << counter;
     if (!view_res) [[unlikely]] {
       std::cerr << view_res.error() << std::endl;

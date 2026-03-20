@@ -1,5 +1,6 @@
 /* Data Flow */
 @group(0) @binding(0) var target_texture: texture_storage_2d<rgba8unorm, write>;
+@group(1) @binding(0) var<uniform> camera: Camera;
 
 /* Type */
 struct Primitive {
@@ -19,7 +20,7 @@ struct Ray {
 const kPi: f32 = 3.1415926535;
 const kEpsilon: f32 = 1e-6;
 /* Vertex */
-const kCubePos: vec3f = vec3f(8, 0, 0);
+const kCubePos: vec3f = vec3f(0, 0, 0);
 const kCubeRot: vec3f = vec3f(kPi / 4, kPi / 4, kPi / 4);
 const kCubeRotMat: mat3x3f = mat3x3f(
   1, 0,               0,
@@ -52,12 +53,6 @@ const kPrimArr: array<Primitive, 12> = array<Primitive, 12>(
   Primitive(vec3u(0, 2, 4)), Primitive(vec3u(2, 4, 6)),
   Primitive(vec3u(1, 3, 5)), Primitive(vec3u(3, 5, 7)),
 );
-/* Camera */
-const kCamera: Camera = Camera(
-  vec3f(0.0f, 0.0f, 0.0f),
-  vec3f(2.0f, 0.0f, 0.0f),
-  vec2f(1.960, 1.080),
-);
 
 /* Main */
 @compute @workgroup_size(16, 16)
@@ -82,14 +77,14 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
 
 /* Functions */
 fn CameraRay(coord: vec2f) -> Ray {
-  const dx: vec3f = normalize(
+  let dx: vec3f = normalize(
     cross(
       vec3f(0, 0, 1),
-      kCamera.dir
+      camera.dir
     )
-  ) * kCamera.viewport.x;
-  const dy: vec3f = normalize(cross(dx, kCamera.dir)) * kCamera.viewport.y;
-  return Ray(kCamera.pos, normalize(kCamera.dir + coord.x * dx + coord.y * dy));
+  ) * camera.viewport.x;
+  let dy: vec3f = normalize(cross(dx, camera.dir)) * camera.viewport.y;
+  return Ray(camera.pos, normalize(camera.dir + coord.x * dx + coord.y * dy));
 }
 fn RayColor(ray: Ray) -> vec3f {
   let hit_info = RayHit(ray);

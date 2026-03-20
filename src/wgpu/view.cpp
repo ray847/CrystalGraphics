@@ -10,10 +10,9 @@
 namespace crystal::graphics::wgpu {
 
 std::expected<void, Error> Env::View(const Camera& camera) {
-  static Camera static_camera = camera;
   /* Write Inputs */
   auto write_camera_res =
-      WriteCameraUniform(static_camera, resources_, *queue_);
+      WriteCameraUniform(camera, resources_, *queue_);
   if (!write_camera_res) return std::unexpected(write_camera_res.error());
   /* Target View */
   auto target_view_res{ NextTargetView(*surface_) };

@@ -27,8 +27,18 @@ struct ComputeBindGroupLayouts {
   }
   ComputeBindGroupLayouts(const ComputeBindGroupLayouts&) = delete;
   ComputeBindGroupLayouts& operator=(const ComputeBindGroupLayouts&) = delete;
-  ComputeBindGroupLayouts(ComputeBindGroupLayouts&&) = default;
-  ComputeBindGroupLayouts& operator=(ComputeBindGroupLayouts&&) = default;
+  ComputeBindGroupLayouts(ComputeBindGroupLayouts&& other) noexcept 
+      : layouts{other.layouts} {
+    other.layouts = {nullptr, nullptr};
+  }
+  ComputeBindGroupLayouts& operator=(ComputeBindGroupLayouts&& other) noexcept {
+    if (this != &other) {
+      for (auto& layout : layouts) { if (layout) layout.release(); }
+      layouts = other.layouts;
+      other.layouts = {nullptr, nullptr};
+    }
+    return *this;
+  }
 
   auto& operator[](std::size_t idx) {
     return layouts[idx];
@@ -55,8 +65,18 @@ struct ComputeBindGroups {
   }
   ComputeBindGroups(const ComputeBindGroups&) = delete;
   ComputeBindGroups& operator=(const ComputeBindGroups&) = delete;
-  ComputeBindGroups(ComputeBindGroups&&) = default;
-  ComputeBindGroups& operator=(ComputeBindGroups&&) = default;
+  ComputeBindGroups(ComputeBindGroups&& other) noexcept 
+      : bindgroups{other.bindgroups} {
+    other.bindgroups = {nullptr, nullptr};
+  }
+  ComputeBindGroups& operator=(ComputeBindGroups&& other) noexcept {
+    if (this != &other) {
+      for (auto& layout : bindgroups) { if (layout) layout.release(); }
+      bindgroups = other.bindgroups;
+      other.bindgroups = {nullptr, nullptr};
+    }
+    return *this;
+  }
 
   auto& operator[](std::size_t idx) {
     return bindgroups[idx];

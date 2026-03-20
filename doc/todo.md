@@ -1,9 +1,9 @@
 # ToDo
 
-1. Camera & Depth Map
+1. ~~Camera & Depth Map~~
   * ~~Depth Map~~
     * ~~Möller–Trumbore intersection algorithm~~
-  * Camera
+  * ~~Camera~~
 
 2. Scene Integration & BVH
   * Scene Objects

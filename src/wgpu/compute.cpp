@@ -17,12 +17,16 @@ std::expected<ComputeBindGroupLayouts, Error> CreateComputeBindGroupLayouts(
   /* Group 0 */
   std::array<::wgpu::BindGroupLayoutEntry, 1> group0entries{
     [&] -> ::wgpu::BindGroupLayoutEntry {
-      ::wgpu::BindGroupLayoutEntry camera_entry;
-      camera_entry.binding = 0;
-      camera_entry.visibility = ::wgpu::ShaderStage::Compute;
-      camera_entry.buffer.type = ::wgpu::BufferBindingType::Uniform;
-      camera_entry.buffer.minBindingSize = sizeof(Camera);
-      return camera_entry;
+      ::wgpu::BindGroupLayoutEntry surface_texture_entry{::wgpu::Default};
+      surface_texture_entry.binding = 0;
+      surface_texture_entry.visibility = ::wgpu::ShaderStage::Compute;
+      surface_texture_entry.storageTexture.access =
+          ::wgpu::StorageTextureAccess::WriteOnly;
+      surface_texture_entry.storageTexture.format =
+          ::wgpu::TextureFormat::RGBA8Unorm;
+      surface_texture_entry.storageTexture.viewDimension =
+          ::wgpu::TextureViewDimension::_2D;
+      return surface_texture_entry;
     }()
   };
   ::wgpu::BindGroupLayout group0 =
@@ -39,16 +43,12 @@ std::expected<ComputeBindGroupLayouts, Error> CreateComputeBindGroupLayouts(
   /* Group 1 */
   std::array<::wgpu::BindGroupLayoutEntry, 1> group1entries{
     [&] -> ::wgpu::BindGroupLayoutEntry {
-      ::wgpu::BindGroupLayoutEntry surface_texture_entry;
-      surface_texture_entry.binding = 1;
-      surface_texture_entry.visibility = ::wgpu::ShaderStage::Compute;
-      surface_texture_entry.storageTexture.access =
-          ::wgpu::StorageTextureAccess::WriteOnly;
-      surface_texture_entry.storageTexture.format =
-          ::wgpu::TextureFormat::RGBA8Unorm;
-      surface_texture_entry.storageTexture.viewDimension =
-          ::wgpu::TextureViewDimension::_2D;
-      return surface_texture_entry;
+      ::wgpu::BindGroupLayoutEntry camera_entry{::wgpu::Default};
+      camera_entry.binding = 0;
+      camera_entry.visibility = ::wgpu::ShaderStage::Compute;
+      camera_entry.buffer.type = ::wgpu::BufferBindingType::Uniform;
+      camera_entry.buffer.minBindingSize = sizeof(Camera);
+      return camera_entry;
     }()
   };
   ::wgpu::BindGroupLayout group1 =
@@ -57,7 +57,7 @@ std::expected<ComputeBindGroupLayouts, Error> CreateComputeBindGroupLayouts(
         desc.entries = group1entries.data();
         desc.entryCount = group1entries.size();
         desc.label = ::wgpu::StringView{
-          "Crystal Graphics Compute BindGroup Layout Group 0"
+          "Crystal Graphics Compute BindGroup Layout Group 1"
         };
         return desc;
       }());
@@ -107,7 +107,8 @@ std::expected<ComputeBindGroups, Error> CreateComputeBindGroups(
       ::wgpu::BindGroupDescriptor desc{ ::wgpu::Default };
       desc.entries = group1entries.data();
       desc.entryCount = group1entries.size();
-      desc.label = ::wgpu::StringView{ "Crystal Graphics BindGroup (Compute)" };
+      desc.label =
+          ::wgpu::StringView{ "Crystal Graphics BindGroup Group 1 (Compute)" };
       desc.layout = layouts[1];
       desc.nextInChain = nullptr;
       return desc;
@@ -139,6 +140,8 @@ std::expected<::wgpu::ComputePipeline, Error> CreateComputePipeline(
         ::wgpu::PipelineLayoutDescriptor desc{ ::wgpu::Default };
         desc.bindGroupLayoutCount = bindgroup_layouts.size();
         desc.bindGroupLayouts = bindgroup_layouts.data();
+        desc.label =
+            ::wgpu::StringView{ "Crystal Graphics Pipeline Layout (Compute)" };
         return desc;
       }()) };
   /* Pipeline */
@@ -167,9 +170,9 @@ std::expected<void, Error> EncodeComputePass(::wgpu::CommandEncoder& encoder,
   };
   if (auto e = global::error_stack.Pop()) return std::unexpected(*e);
   compute_pass_encoder->setPipeline(pipeline);
-  for (auto [idx, bindgroup] : std::views::enumerate(*bindgroups)) {
+  for (const auto& [idx, bindgroup] : std::views::enumerate(*bindgroups)) {
     compute_pass_encoder->setBindGroup(
-        /* group index */ 0,
+        /* group index */ idx,
         /* bindgroup */ bindgroup,
         /* dynamic offset count */ 0,
         /* dynamic offsets */ nullptr);

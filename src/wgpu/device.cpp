@@ -25,7 +25,7 @@ std::expected<::wgpu::Device, Error> CreateDevice(::wgpu::Adapter& adapter) {
       std::stringstream ss;
       ss << "WebGPU device lost:\n"
          << "Reason: " << reason << '\n'
-         << "Message" << ::wgpu::StringView{ msg } << '\n';
+         << "Message: " << ::wgpu::StringView{ msg } << '\n';
       global::error_stack.Push(Error{ ss.str() });
     };
     ::wgpu::UncapturedErrorCallbackInfo uncaptured_error_callback{};
@@ -37,7 +37,7 @@ std::expected<::wgpu::Device, Error> CreateDevice(::wgpu::Adapter& adapter) {
       std::stringstream ss;
       ss << "Uncaptured error:\n"
          << "Error Type: " << type << '\n'
-         << "Message" << ::wgpu::StringView{ msg } << '\n';
+         << "Message: " << ::wgpu::StringView{ msg } << '\n';
       global::error_stack.Push(Error{ ss.str() });
     };
     desc.deviceLostCallbackInfo = device_lost_callback;
