@@ -4,7 +4,7 @@
 #include <webgpu/webgpu.hpp>
 
 #include "global.h"
-#include "util.h"
+#include "render.h"
 #include "webgpu/webgpu-raii.hpp"
 
 namespace crystal::graphics::wgpu {

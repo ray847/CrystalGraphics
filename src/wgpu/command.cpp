@@ -1,7 +1,7 @@
 #include <webgpu/webgpu.hpp>
 
 #include "global.h"
-#include "util.h"
+#include "command.h"
 
 namespace crystal::graphics::wgpu {
 

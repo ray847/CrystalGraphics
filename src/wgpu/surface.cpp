@@ -3,9 +3,8 @@
 #include <glfw3webgpu.h>
 #include <webgpu/webgpu.hpp>
 
-#include "../glfw/global.h"
 #include "global.h"
-#include "util.h"
+#include "surface.h"
 
 namespace crystal::graphics::wgpu {
 
@@ -13,7 +12,6 @@ std::expected<::wgpu::Surface, Error> CreateSurface(::wgpu::Instance& instance,
                                                     GLFWwindow* window) {
   auto surface = glfwCreateWindowWGPUSurface(instance, window);
   if (auto e = global::error_stack.Pop()) return std::unexpected(*e);
-  if (auto e = glfw::global::error_stack.Pop()) return std::unexpected(*e);
   return surface;
 }
 
@@ -31,8 +29,8 @@ std::expected<::wgpu::SurfaceConfiguration, Error> ConfigSurface(
       [&] -> ::wgpu::SurfaceConfiguration {
     ::wgpu::SurfaceConfiguration config;
     config.nextInChain = nullptr;
-    config.width = global::window_width;
-    config.height = global::window_height;
+    config.width = global::resolution_width;
+    config.height = global::resolution_height;
     config.usage = WGPUTextureUsage_RenderAttachment;
     config.format = surface_capabilities.formats[0];
     config.viewFormatCount = 0;

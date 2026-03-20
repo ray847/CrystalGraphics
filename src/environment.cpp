@@ -53,8 +53,8 @@ std::expected<void, Error> Env::Term() {
   return {};
 }
 
-std::expected<void, Error> Env::View() {
-  auto render_res = wgpu_env_.View();
+std::expected<void, Error> Env::View(const Camera& camera) {
+  auto render_res = wgpu_env_.View(camera);
   if (!render_res) return std::unexpected(render_res.error());
   return {};
 }

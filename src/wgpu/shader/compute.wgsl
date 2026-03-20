@@ -56,7 +56,7 @@ const kPrimArr: array<Primitive, 12> = array<Primitive, 12>(
 const kCamera: Camera = Camera(
   vec3f(0.0f, 0.0f, 0.0f),
   vec3f(2.0f, 0.0f, 0.0f),
-  vec2f(0.640f, 0.480f),
+  vec2f(1.960, 1.080),
 );
 
 /* Main */

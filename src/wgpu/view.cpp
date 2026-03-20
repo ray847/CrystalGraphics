@@ -2,12 +2,20 @@
 
 #include <webgpu/webgpu-raii.hpp>
 
+#include "CrystalGraphics/camera.h"
+#include "resource.h"
 #include "util.h"
 #include "environment.h"
 
 namespace crystal::graphics::wgpu {
 
-std::expected<void, Error> Env::View() {
+std::expected<void, Error> Env::View(const Camera& camera) {
+  static Camera static_camera = camera;
+  /* Write Inputs */
+  auto write_camera_res =
+      WriteCameraUniform(static_camera, resources_, *queue_);
+  if (!write_camera_res) return std::unexpected(write_camera_res.error());
+  /* Target View */
   auto target_view_res{ NextTargetView(*surface_) };
   if (!target_view_res) return std::unexpected(target_view_res.error());
   ::wgpu::raii::TextureView target_view{ std::move(*target_view_res) };
@@ -18,7 +26,7 @@ std::expected<void, Error> Env::View() {
   ::wgpu::raii::CommandEncoder encoder {std::move(*create_cmd_encoder_res)};
   /* Compute Pass */
   auto encode_compute_pass_res{ EncodeComputePass(
-      *encoder, *compute_pipeline_, *compute_bindgroup_) };
+      *encoder, *compute_pipeline_, compute_bindgroups_) };
   if (!encode_compute_pass_res)
     return std::unexpected(encode_compute_pass_res.error());
   /* Render Pass */

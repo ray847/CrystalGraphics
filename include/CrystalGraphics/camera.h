@@ -7,9 +7,9 @@
 namespace crystal::graphics {
 
 struct Camera {
-  spatial::vec3f position{0, 0, 0};
-  spatial::vec3f direction{1, 0, 0};
-  spatial::vec2f viewport{0.5, 0.5};
+  alignas(16) spatial::vec3f position{0, 0, 0};
+  alignas(16) spatial::vec3f direction{1, 0, 0};
+  alignas( 8) spatial::vec2f viewport{0.5, 0.5};
 };
 
 } // namespace crystal::graphics

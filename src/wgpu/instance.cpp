@@ -1,6 +1,6 @@
 #include <webgpu/webgpu.hpp>
 
-#include "util.h"
+#include "instance.h"
 
 namespace crystal::graphics::wgpu {
 std::expected<::wgpu::Instance, Error> CreateInstance() {

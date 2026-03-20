@@ -9,10 +9,10 @@
 
 namespace crystal::graphics {
 
-std::expected<void, Error> View(const Scene& scene, Camera camera) {
+std::expected<void, Error> View(const Scene& scene, const Camera& camera) {
   if (!global::env)
     return std::unexpected(Error{ "Environment not initialized." });
-  return global::env->View();
+  return global::env->View(camera);
 }
 
 } // namespace crystal::graphics

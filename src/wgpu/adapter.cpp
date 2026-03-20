@@ -6,7 +6,7 @@
 #include <webgpu/webgpu.hpp>
 
 #include "CrystalGraphics/error.h"
-#include "util.h"
+#include "adapter.h"
 
 namespace crystal::graphics::wgpu {
 

@@ -26,30 +26,25 @@ std::expected<Env, Error> CreateEnv(GLFWwindow* window) {
       ConfigSurface(*surface, *adapter, *device);
   if (!surface_config) return std::unexpected(surface_config.error());
   /* Resources */
-  auto surface_texture = CreateSurfaceTexture(*device, *surface_config);
-  if (!surface_texture) return std::unexpected(surface_texture.error());
-  auto surface_texture_view_res = CreateSurfaceTextureView(*surface_texture);
+  auto resources = CreateResources(*surface_config, *device);
+  if (!resources) return std::unexpected(resources.error());
+  auto surface_texture_view_res =
+      CreateSurfaceTextureView(*resources->surface_texture);
   if (!surface_texture_view_res)
     return std::unexpected(surface_texture_view_res.error());
   ::wgpu::raii::TextureView surface_texture_view{ std::move(
       *surface_texture_view_res) };
-  auto surface_texture_sampler_res = CreateSurfaceTextureSampler(*device);
-  if (!surface_texture_sampler_res)
-    return std::unexpected(surface_texture_sampler_res.error());
-  ::wgpu::raii::Sampler surface_texture_sampler{ std::move(
-      *surface_texture_sampler_res) };
   /* Compute */
-  auto compute_bindgroup_layout_res =
-      CreateComputeBindGroupLayout(*device);
-  if (!compute_bindgroup_layout_res)
-    return std::unexpected(compute_bindgroup_layout_res.error());
-  ::wgpu::raii::BindGroupLayout compute_bindgroup_layout{ std::move(
-      *compute_bindgroup_layout_res) };
-  auto compute_bindgroup = CreateComputeBindGroup(
-      *surface_texture_view, *compute_bindgroup_layout, *device);
+  auto compute_bindgroup_layouts = CreateComputeBindGroupLayouts(*device);
+  if (!compute_bindgroup_layouts)
+    return std::unexpected(compute_bindgroup_layouts.error());
+  auto compute_bindgroup = CreateComputeBindGroups(*surface_texture_view,
+                                                   *resources->camera_uniform,
+                                                   *compute_bindgroup_layouts,
+                                                   *device);
   if (!compute_bindgroup) return std::unexpected(compute_bindgroup.error());
   auto compute_pipeline =
-      CreateComputePipeline(*compute_bindgroup_layout, *device);
+      CreateComputePipeline(*compute_bindgroup_layouts, *device);
   if (!compute_pipeline) return std::unexpected(compute_pipeline.error());
   /* Render */
   auto render_bindgroup_layout_res = CreateRenderBindGroupLayout(*device);
@@ -58,7 +53,7 @@ std::expected<Env, Error> CreateEnv(GLFWwindow* window) {
   ::wgpu::raii::BindGroupLayout render_bindgroup_layout{ std::move(
       *render_bindgroup_layout_res) };
   auto render_bindgroup = CreateRenderBindGroup(*surface_texture_view,
-                                                *surface_texture_sampler,
+                                                *resources->surface_sampler,
                                                 *render_bindgroup_layout,
                                                 *device);
   if (!render_bindgroup) return std::unexpected(render_bindgroup.error());
@@ -71,7 +66,7 @@ std::expected<Env, Error> CreateEnv(GLFWwindow* window) {
   return Env{ std::move(*instance),
               std::move(*device),
               std::move(*surface),
-              std::move(*surface_texture),
+              std::move(*resources),
               std::move(*compute_bindgroup),
               std::move(*compute_pipeline),
               std::move(*render_bindgroup),

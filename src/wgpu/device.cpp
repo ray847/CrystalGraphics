@@ -1,7 +1,7 @@
 #include <sstream>
 
 #include "global.h"
-#include "util.h"
+#include "device.h"
 #include "webgpu/webgpu.hpp"
 
 namespace crystal::graphics::wgpu {

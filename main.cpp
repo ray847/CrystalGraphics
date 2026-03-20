@@ -11,12 +11,12 @@ int main() {
     std::cerr << init_res.error() << std::endl;
     abort();
   }
-  /* Run for 3 seconds. */
+  /* Run for 1 seconds. */
   crystal::graphics::Scene scene{};
   uint64_t counter = 0;
   auto st = std::chrono::high_resolution_clock::now();
   while (std::chrono::high_resolution_clock::now() - st
-         < std::chrono::seconds(3)) {
+         < std::chrono::seconds(1)) {
     auto view_res = crystal::graphics::View(scene,
                                             {
                                                 .position = { 0, 0, 0 },

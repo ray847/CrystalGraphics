@@ -9,7 +9,7 @@
 
 namespace crystal::graphics {
 
-std::expected<void, Error> View(const Scene& scene, Camera camera = {});
+std::expected<void, Error> View(const Scene& scene, const Camera& camera = {});
 
 } // namespace crystal::graphics
 

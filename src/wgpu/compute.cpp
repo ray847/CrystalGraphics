@@ -1,21 +1,46 @@
 #include <webgpu/webgpu.h>
 
 #include <array>
+#include <ranges>
 
 #include "CrystalGraphics/error.h"
+#include "CrystalGraphics/camera.h"
 #include "global.h"
-#include "util.h"
+#include "compute.h"
 #include "webgpu/webgpu.hpp"
 
 
 namespace crystal::graphics::wgpu {
-std::expected<::wgpu::BindGroupLayout, Error> CreateComputeBindGroupLayout(
+
+std::expected<ComputeBindGroupLayouts, Error> CreateComputeBindGroupLayouts(
     ::wgpu::Device& device) {
-  /* BindGroup Layout */
-  std::array<::wgpu::BindGroupLayoutEntry, 1> layout_entries{
+  /* Group 0 */
+  std::array<::wgpu::BindGroupLayoutEntry, 1> group0entries{
+    [&] -> ::wgpu::BindGroupLayoutEntry {
+      ::wgpu::BindGroupLayoutEntry camera_entry;
+      camera_entry.binding = 0;
+      camera_entry.visibility = ::wgpu::ShaderStage::Compute;
+      camera_entry.buffer.type = ::wgpu::BufferBindingType::Uniform;
+      camera_entry.buffer.minBindingSize = sizeof(Camera);
+      return camera_entry;
+    }()
+  };
+  ::wgpu::BindGroupLayout group0 =
+      device.createBindGroupLayout([&] -> ::wgpu::BindGroupLayoutDescriptor {
+        ::wgpu::BindGroupLayoutDescriptor desc{ ::wgpu::Default };
+        desc.entries = group0entries.data();
+        desc.entryCount = group0entries.size();
+        desc.label = ::wgpu::StringView{
+          "Crystal Graphics Compute BindGroup Layout Group 0"
+        };
+        return desc;
+      }());
+  if (auto e = global::error_stack.Pop()) return std::unexpected(*e);
+  /* Group 1 */
+  std::array<::wgpu::BindGroupLayoutEntry, 1> group1entries{
     [&] -> ::wgpu::BindGroupLayoutEntry {
       ::wgpu::BindGroupLayoutEntry surface_texture_entry;
-      surface_texture_entry.binding = 0;
+      surface_texture_entry.binding = 1;
       surface_texture_entry.visibility = ::wgpu::ShaderStage::Compute;
       surface_texture_entry.storageTexture.access =
           ::wgpu::StorageTextureAccess::WriteOnly;
@@ -24,48 +49,76 @@ std::expected<::wgpu::BindGroupLayout, Error> CreateComputeBindGroupLayout(
       surface_texture_entry.storageTexture.viewDimension =
           ::wgpu::TextureViewDimension::_2D;
       return surface_texture_entry;
-    }(),
+    }()
   };
-  ::wgpu::BindGroupLayout bindgroup_layout =
+  ::wgpu::BindGroupLayout group1 =
       device.createBindGroupLayout([&] -> ::wgpu::BindGroupLayoutDescriptor {
         ::wgpu::BindGroupLayoutDescriptor desc{ ::wgpu::Default };
-        desc.entries = layout_entries.data();
-        desc.entryCount = layout_entries.size();
-        desc.label =
-            ::wgpu::StringView{ "Crystal Graphics Compute BindGroup Layout" };
+        desc.entries = group1entries.data();
+        desc.entryCount = group1entries.size();
+        desc.label = ::wgpu::StringView{
+          "Crystal Graphics Compute BindGroup Layout Group 0"
+        };
         return desc;
       }());
   if (auto e = global::error_stack.Pop()) return std::unexpected(*e);
-  return bindgroup_layout;
+  return ComputeBindGroupLayouts{ group0, group1 };
 }
 
-std::expected<::wgpu::BindGroup, Error> CreateComputeBindGroup(
+std::expected<ComputeBindGroups, Error> CreateComputeBindGroups(
     ::wgpu::TextureView& surface_texture_view,
-    ::wgpu::BindGroupLayout& layout,
+    ::wgpu::Buffer& camera_uniform,
+    ComputeBindGroupLayouts& layouts,
     ::wgpu::Device& device) {
-  std::array<::wgpu::BindGroupEntry, 1> entries{ [&] -> ::wgpu::BindGroupEntry {
-    ::wgpu::BindGroupEntry surface_texture{ ::wgpu::Default };
-    surface_texture.binding = 0;
-    surface_texture.textureView = surface_texture_view;
-    return surface_texture;
-  }() };
-  ::wgpu::BindGroup bindgroup{
+  /* Group 0 */
+  std::array<::wgpu::BindGroupEntry, 1> group0entries{
+    [&] -> ::wgpu::BindGroupEntry {
+      ::wgpu::BindGroupEntry surface_texture{ ::wgpu::Default };
+      surface_texture.binding = 0;
+      surface_texture.textureView = surface_texture_view;
+      return surface_texture;
+    }(),
+  };
+  ::wgpu::BindGroup group0{
     device.createBindGroup([&] -> ::wgpu::BindGroupDescriptor {
       ::wgpu::BindGroupDescriptor desc{ ::wgpu::Default };
-      desc.entries = entries.data();
-      desc.entryCount = entries.size();
-      desc.label = ::wgpu::StringView{ "Crystal Graphics BindGroup (Compute)" };
-      desc.layout = layout;
+      desc.entries = group0entries.data();
+      desc.entryCount = group0entries.size();
+      desc.label =
+          ::wgpu::StringView{ "Crystal Graphics BindGroup Group 0 (Compute)" };
+      desc.layout = layouts[0];
       desc.nextInChain = nullptr;
       return desc;
     }())
   };
   if (auto e = global::error_stack.Pop()) return std::unexpected(*e);
-  return bindgroup;
+  /* Group 1 */
+  std::array<::wgpu::BindGroupEntry, 1> group1entries{
+    [&] -> ::wgpu::BindGroupEntry {
+      ::wgpu::BindGroupEntry camera{ ::wgpu::Default };
+      camera.binding = 0;
+      camera.buffer = camera_uniform;
+      camera.size = camera_uniform.getSize();
+      return camera;
+    }(),
+  };
+  ::wgpu::BindGroup group1{
+    device.createBindGroup([&] -> ::wgpu::BindGroupDescriptor {
+      ::wgpu::BindGroupDescriptor desc{ ::wgpu::Default };
+      desc.entries = group1entries.data();
+      desc.entryCount = group1entries.size();
+      desc.label = ::wgpu::StringView{ "Crystal Graphics BindGroup (Compute)" };
+      desc.layout = layouts[1];
+      desc.nextInChain = nullptr;
+      return desc;
+    }())
+  };
+  if (auto e = global::error_stack.Pop()) return std::unexpected(*e);
+  return ComputeBindGroups{ group0, group1 };
 }
 
 std::expected<::wgpu::ComputePipeline, Error> CreateComputePipeline(
-    ::wgpu::BindGroupLayout& bindgroup_layout, ::wgpu::Device& device) {
+    ComputeBindGroupLayouts& bindgroup_layouts, ::wgpu::Device& device) {
   /* Compute Shader */
   ::wgpu::ShaderSourceWGSL comp_src_desc{ ::wgpu::Default };
   constexpr char comp_src[] = {
@@ -84,9 +137,8 @@ std::expected<::wgpu::ComputePipeline, Error> CreateComputePipeline(
   ::wgpu::raii::PipelineLayout pipeline_layout{ device.createPipelineLayout(
       [&] -> ::wgpu::PipelineLayoutDescriptor {
         ::wgpu::PipelineLayoutDescriptor desc{ ::wgpu::Default };
-        desc.bindGroupLayoutCount = 1;
-        desc.bindGroupLayouts =
-            reinterpret_cast<WGPUBindGroupLayout*>(&bindgroup_layout);
+        desc.bindGroupLayoutCount = bindgroup_layouts.size();
+        desc.bindGroupLayouts = bindgroup_layouts.data();
         return desc;
       }()) };
   /* Pipeline */
@@ -105,22 +157,25 @@ std::expected<::wgpu::ComputePipeline, Error> CreateComputePipeline(
 
 std::expected<void, Error> EncodeComputePass(::wgpu::CommandEncoder& encoder,
                                              ::wgpu::ComputePipeline& pipeline,
-                                             ::wgpu::BindGroup& bindgroup) {
-  ::wgpu::raii::ComputePassEncoder compute_pass_encoder{ encoder.beginComputePass(
-      [] -> ::wgpu::ComputePassDescriptor {
-        ::wgpu::ComputePassDescriptor desc{ ::wgpu::Default };
-        desc.timestampWrites = nullptr;
-        return desc;
-      }()) };
+                                             ComputeBindGroups& bindgroups) {
+  ::wgpu::raii::ComputePassEncoder compute_pass_encoder{
+    encoder.beginComputePass([] -> ::wgpu::ComputePassDescriptor {
+      ::wgpu::ComputePassDescriptor desc{ ::wgpu::Default };
+      desc.timestampWrites = nullptr;
+      return desc;
+    }())
+  };
   if (auto e = global::error_stack.Pop()) return std::unexpected(*e);
   compute_pass_encoder->setPipeline(pipeline);
-  compute_pass_encoder->setBindGroup(
-      /* group index */ 0,
-      /* bindgroup */ bindgroup,
-      /* dynamic offset count */ 0,
-      /* dynamic offsets */ nullptr);
-  uint32_t width = global::window_width;
-  uint32_t height = global::window_height;
+  for (auto [idx, bindgroup] : std::views::enumerate(*bindgroups)) {
+    compute_pass_encoder->setBindGroup(
+        /* group index */ 0,
+        /* bindgroup */ bindgroup,
+        /* dynamic offset count */ 0,
+        /* dynamic offsets */ nullptr);
+  }
+  uint32_t width = global::resolution_width;
+  uint32_t height = global::resolution_height;
   uint32_t workgroup_size_x = 16;
   uint32_t workgroup_size_y = 16;
   uint32_t workgroup_count_x =
@@ -133,4 +188,5 @@ std::expected<void, Error> EncodeComputePass(::wgpu::CommandEncoder& encoder,
   if (auto e = global::error_stack.Pop()) return std::unexpected(*e);
   return {};
 }
+
 }  // namespace crystal::graphics::wgpu

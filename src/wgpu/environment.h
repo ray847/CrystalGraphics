@@ -10,6 +10,9 @@
 #include <webgpu/webgpu.hpp>
 
 #include "CrystalGraphics/error.h"
+#include "CrystalGraphics/camera.h"
+#include "compute.h"
+#include "util.h"
 
 namespace crystal::graphics::wgpu {
 
@@ -29,24 +32,27 @@ class Env {
   operator bool() const;
 
   /* View */
-  std::expected<void, Error> View();
+  std::expected<void, Error> View(const Camera& camera);
 
  private:
   ::wgpu::raii::Instance instance_;
   ::wgpu::raii::Device device_;
   ::wgpu::raii::Surface surface_;
-  ::wgpu::raii::Texture surface_texture_;
-  ::wgpu::raii::BindGroup compute_bindgroup_;
+  /* Resources */
+  Resources resources_;
+  /* Pipelines */
+  ComputeBindGroups compute_bindgroups_;
   ::wgpu::raii::ComputePipeline compute_pipeline_;
   ::wgpu::raii::BindGroup render_bindgroup_;
   ::wgpu::raii::RenderPipeline render_pipeline_;
+  /* Queue */
   ::wgpu::raii::Queue queue_;
   /* Constructor */
   Env(::wgpu::Instance&& instance,
            ::wgpu::Device&& device,
            ::wgpu::Surface&& surface,
-           ::wgpu::Texture&& surface_texture,
-           ::wgpu::BindGroup&& compute_bindgroup,
+           Resources&& resources,
+           ComputeBindGroups&& compute_bindgroups,
            ::wgpu::ComputePipeline&& compute_pipeline,
            ::wgpu::BindGroup&& render_bindgroup,
            ::wgpu::RenderPipeline&& render_pipeline,
@@ -54,8 +60,8 @@ class Env {
       instance_(std::move(instance)),
       device_(std::move(device)),
       surface_(std::move(surface)),
-      surface_texture_(std::move(surface_texture)),
-      compute_bindgroup_(std::move(compute_bindgroup)),
+      resources_(std::move(resources)),
+      compute_bindgroups_(std::move(compute_bindgroups)),
       compute_pipeline_(std::move(compute_pipeline)),
       render_bindgroup_(std::move(render_bindgroup)),
       render_pipeline_(std::move(render_pipeline)),
