@@ -31,8 +31,8 @@ std::expected<::wgpu::SurfaceConfiguration, Error> ConfigSurface(
       [&] -> ::wgpu::SurfaceConfiguration {
     ::wgpu::SurfaceConfiguration config;
     config.nextInChain = nullptr;
-    config.width = 640;
-    config.height = 480;
+    config.width = global::window_width;
+    config.height = global::window_height;
     config.usage = WGPUTextureUsage_RenderAttachment;
     config.format = surface_capabilities.formats[0];
     config.viewFormatCount = 0;

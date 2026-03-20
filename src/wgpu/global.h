@@ -4,7 +4,12 @@
 #include "src/error_stack.h"
 
 namespace crystal::graphics::wgpu::global {
+
 inline ErrorStack error_stack{};
+
+constexpr uint32_t window_width = 1960;
+constexpr uint32_t window_height = 1080;
+
 }
 
 #endif

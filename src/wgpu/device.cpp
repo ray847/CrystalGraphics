@@ -44,7 +44,6 @@ std::expected<::wgpu::Device, Error> CreateDevice(::wgpu::Adapter& adapter) {
     desc.uncapturedErrorCallbackInfo = uncaptured_error_callback;
     return desc;
   }());
-  device.pushErrorScope(::wgpu::ErrorFilter::Validation);
   if (auto e = global::error_stack.Pop()) return std::unexpected(*e);
   return device;
 }

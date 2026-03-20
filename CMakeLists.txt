@@ -20,6 +20,8 @@ target_sources(CrystalGraphics
     src/graphics.cpp
     src/error.cpp
     src/environment.cpp
+    src/model.cpp
+    src/camera.cpp
     src/scene.cpp
     src/api.cpp
     src/view.cpp
@@ -56,6 +58,7 @@ target_include_directories(CrystalGraphics
 target_link_libraries(CrystalGraphics
   PUBLIC
     CrystalBase
+    CrystalSpatial
   PRIVATE
     glfw
     webgpu

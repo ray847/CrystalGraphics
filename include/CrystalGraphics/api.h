@@ -3,12 +3,13 @@
 
 #include <expected>
 
+#include "camera.h"
 #include "scene.h"
 #include "error.h"
 
 namespace crystal::graphics {
 
-std::expected<void, Error> View(const Scene& scene);
+std::expected<void, Error> View(const Scene& scene, Camera camera = {});
 
 } // namespace crystal::graphics
 

@@ -119,8 +119,8 @@ std::expected<void, Error> EncodeComputePass(::wgpu::CommandEncoder& encoder,
       /* bindgroup */ bindgroup,
       /* dynamic offset count */ 0,
       /* dynamic offsets */ nullptr);
-  uint32_t width = 640;
-  uint32_t height = 480;
+  uint32_t width = global::window_width;
+  uint32_t height = global::window_height;
   uint32_t workgroup_size_x = 16;
   uint32_t workgroup_size_y = 16;
   uint32_t workgroup_count_x =

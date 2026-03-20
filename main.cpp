@@ -16,8 +16,13 @@ int main() {
   uint64_t counter = 0;
   auto st = std::chrono::high_resolution_clock::now();
   while (std::chrono::high_resolution_clock::now() - st
-         < std::chrono::seconds(1)) {
-    auto view_res = crystal::graphics::View(scene);
+         < std::chrono::seconds(3)) {
+    auto view_res = crystal::graphics::View(scene,
+                                            {
+                                                .position = { 0, 0, 0 },
+                                                .direction = { 1, 0, 0 },
+                                                .viewport = { 0.640, 0.480 }
+    });
     std::cout << "\rLoop: " << counter;
     if (!view_res) [[unlikely]] {
       std::cerr << view_res.error() << std::endl;
