@@ -26,10 +26,10 @@ int main() {
     crystal::graphics::Camera camera{
       .position = { dis * std::cos(angle), dis * std::sin(angle), 0 },
       .direction = { -std::cos(angle), -std::sin(angle), 0 },
-      .viewport = { 0.640, 0.480 }
+      .viewport = { 1.960, 1.080 }
     };
     auto view_res = crystal::graphics::View(scene, camera);
-    std::cout << "\rLoop: " << counter;
+    //std::cout << "\rLoop: " << counter;
     if (!view_res) [[unlikely]] {
       std::cerr << view_res.error() << std::endl;
       abort();
@@ -41,6 +41,7 @@ int main() {
     }
     counter++;
   }
+  std::cout << "\rLoop: " << counter;
   auto term_res = crystal::graphics::EnvTerm();
   if (!term_res) {
     std::cerr << term_res.error() << std::endl;

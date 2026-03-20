@@ -16,6 +16,7 @@ std::expected<::wgpu::Adapter, Error> CreateAdapter(::wgpu::Instance& instance,
       instance.requestAdapter([&] -> ::wgpu::RequestAdapterOptions {
         ::wgpu::RequestAdapterOptions opts;
         opts.compatibleSurface = surface;
+        opts.powerPreference = ::wgpu::PowerPreference::HighPerformance;
         return opts;
       }());
   return adapter;
