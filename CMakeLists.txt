@@ -12,6 +12,7 @@ add_subdirectory(lib/CrystalSpatial)
 add_subdirectory(lib/glfw)
 add_subdirectory(lib/WebGPU-distribution)
 add_subdirectory(lib/glfw3webgpu)
+add_subdirectory(lib/tinygltf)
 
 # Internal Library
 add_library(CrystalGraphics)
@@ -63,6 +64,7 @@ target_link_libraries(CrystalGraphics
     glfw
     webgpu
     glfw3webgpu
+    tinygltf
 )
 
 if (CMAKE_CURRENT_SOURCE_DIR STREQUAL CMAKE_SOURCE_DIR)
