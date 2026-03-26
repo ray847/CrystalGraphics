@@ -73,7 +73,7 @@ std::expected<ComputeBindGroupLayouts, Error> CreateComputeBindGroupLayouts(
       ::wgpu::BindGroupLayoutEntry bvh_entry{::wgpu::Default};
       bvh_entry.binding = 0;
       bvh_entry.visibility = ::wgpu::ShaderStage::Compute;
-      bvh_entry.buffer.type = ::wgpu::BufferBindingType::Storage;
+      bvh_entry.buffer.type = ::wgpu::BufferBindingType::ReadOnlyStorage;
       return bvh_entry;
     }()
   };

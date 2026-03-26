@@ -11,8 +11,8 @@ int main() {
     std::cerr << init_res.error() << std::endl;
     return EXIT_FAILURE;
   }
-  auto scene =
-      crystal::graphics::LoadScene("asset/Box.gltf");
+  auto scene = crystal::graphics::LoadScene(
+      "asset/ABeautifulGame/glTF/ABeautifulGame.gltf");
   if (!scene) {
     std::cout << scene.error() << std::endl;
     return EXIT_FAILURE;
@@ -21,12 +21,12 @@ int main() {
   uint64_t counter = 0;
   auto st = std::chrono::high_resolution_clock::now();
   while (std::chrono::high_resolution_clock::now() - st
-         < std::chrono::seconds(1)) {
+         < std::chrono::seconds(10)) {
     float angle = (float)std::chrono::duration_cast<std::chrono::milliseconds>(
                       std::chrono::high_resolution_clock::now() - st)
                       .count()
                 / 1000;
-    float dis = 8.0f;
+    float dis = 1.0f;
     crystal::graphics::Camera camera{
       .position = { dis * std::cos(angle), dis * std::sin(angle), 0 },
       .direction = { -std::cos(angle), -std::sin(angle), 0 },

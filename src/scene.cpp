@@ -3,6 +3,7 @@
 #include <cgltf.h>
 
 #include "CrystalGraphics/vertex.h"
+#include "glm/trigonometric.hpp"
 #include "CrystalGraphics/scene.h"
 
 namespace crystal::graphics {
@@ -126,7 +127,10 @@ std::expected<Scene, Error> LoadScene(std::filesystem::path file) {
     extract_node(scene->nodes[i], root_ss.CreateChild());
 
   cgltf_free(data);
-  
+
+  /* Coordinate system translate. */
+  space.RootSubSpace().Trans().IncrRotate(glm::degrees(-90.0f), { 1, 0, 0 });
+
   return res;
 }
 
