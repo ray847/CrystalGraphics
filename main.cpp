@@ -1,22 +1,21 @@
 #include <cmath>
 #include <chrono>
+#include <cstdlib>
 #include <iostream>
 
 #include <CrystalGraphics/graphics.h>
-
-#include "include/CrystalGraphics/scene.h"
 
 int main() {
   auto init_res = crystal::graphics::EnvInit();
   if (!init_res) {
     std::cerr << init_res.error() << std::endl;
-    abort();
+    return EXIT_FAILURE;
   }
   auto scene =
       crystal::graphics::LoadScene("asset/Box.gltf");
   if (!scene) {
     std::cout << scene.error() << std::endl;
-    abort();
+    return EXIT_FAILURE;
   }
   /* Run for some seconds. */
   uint64_t counter = 0;
@@ -34,23 +33,22 @@ int main() {
       .viewport = { 1.960, 1.080 }
     };
     auto view_res = crystal::graphics::View(*scene, camera);
-    //std::cout << "\rLoop: " << counter;
     if (!view_res) [[unlikely]] {
       std::cerr << view_res.error() << std::endl;
-      abort();
+      return EXIT_FAILURE;
     }
     auto sync_res = crystal::graphics::EnvSync();
     if (!sync_res) [[unlikely]] {
       std::cerr << sync_res.error() << std::endl;
-      abort();
+      return EXIT_FAILURE;
     }
     counter++;
   }
-  std::cout << "\rLoop: " << counter;
+  std::cout << "\rLoop: " << counter << std::endl;
   auto term_res = crystal::graphics::EnvTerm();
   if (!term_res) {
     std::cerr << term_res.error() << std::endl;
-    abort();
+    return EXIT_FAILURE;
   }
-  return 0;
+  return EXIT_SUCCESS;
 }

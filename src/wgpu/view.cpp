@@ -3,19 +3,37 @@
 #include <webgpu/webgpu-raii.hpp>
 
 #include "CrystalGraphics/camera.h"
+#include "src/pathtracing/scene_data.h"
+#include "queue.h"
+#include "render.h"
 #include "resource.h"
-#include "util.h"
 #include "environment.h"
+#include "command.h"
+#include "compute.h"
+#include "surface.h"
 
 namespace crystal::graphics::wgpu {
 
-std::expected<void, Error> Env::View(const Camera& camera) {
+std::expected<void, Error> Env::View(const SceneData& scene_data,
+                                     const Camera& camera) {
   /* Write Inputs */
+  /* Camera */
   auto write_camera_res =
       WriteCameraUniform(camera, resources_, *queue_);
   if (!write_camera_res) return std::unexpected(write_camera_res.error());
+  /* BVH */
+  auto write_bvh_res =
+      WriteBVHStorage(scene_data.bvh_, resources_, *queue_, *device_);
+  if (!write_bvh_res) return std::unexpected(write_bvh_res.error());
+  if (*write_bvh_res)
+    if (auto update_res = UpdateComputeBindGroup2(compute_bindgroups_,
+                                                  *resources_.bvh_storage,
+                                                  compute_bindgroup_layouts_,
+                                                  *device_);
+        !update_res)
+      return std::unexpected(update_res.error());
   /* Target View */
-  auto target_view_res{ NextTargetView(*surface_) };
+        auto target_view_res{ NextTargetView(*surface_) };
   if (!target_view_res) return std::unexpected(target_view_res.error());
   ::wgpu::raii::TextureView target_view{ std::move(*target_view_res) };
   /* Command Encoder */

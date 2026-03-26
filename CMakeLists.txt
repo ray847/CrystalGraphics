@@ -38,7 +38,6 @@ target_sources(CrystalGraphics
     src/wgpu/environment.h
     src/wgpu/environment.cpp
     src/wgpu/view.cpp
-    src/wgpu/util.h
     src/wgpu/instance.cpp
     src/wgpu/surface.cpp
     src/wgpu/adapter.cpp

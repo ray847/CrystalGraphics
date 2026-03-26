@@ -3,8 +3,13 @@
 #include <GLFW/glfw3.h>
 #include <webgpu/webgpu-raii.hpp>
 
+#include "adapter.h"
+#include "device.h"
 #include "global.h"
-#include "util.h"
+#include "instance.h"
+#include "queue.h"
+#include "render.h"
+#include "surface.h"
 
 namespace crystal::graphics::wgpu {
 
@@ -40,6 +45,7 @@ std::expected<Env, Error> CreateEnv(GLFWwindow* window) {
     return std::unexpected(compute_bindgroup_layouts.error());
   auto compute_bindgroup = CreateComputeBindGroups(*surface_texture_view,
                                                    *resources->camera_uniform,
+                                                   *resources->bvh_storage,
                                                    *compute_bindgroup_layouts,
                                                    *device);
   if (!compute_bindgroup) return std::unexpected(compute_bindgroup.error());
@@ -67,6 +73,7 @@ std::expected<Env, Error> CreateEnv(GLFWwindow* window) {
               std::move(*device),
               std::move(*surface),
               std::move(*resources),
+              std::move(*compute_bindgroup_layouts),
               std::move(*compute_bindgroup),
               std::move(*compute_pipeline),
               std::move(*render_bindgroup),

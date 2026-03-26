@@ -2,7 +2,6 @@
 #define SRC_WGPU_RESOURCE_H_
 
 #include <expected>
-#include <array>
 
 #include <GLFW/glfw3.h>
 #include <glfw3webgpu.h>
@@ -12,6 +11,7 @@
 
 #include "CrystalGraphics/error.h"
 #include "CrystalGraphics/camera.h"
+#include "src/pathtracing/bvh.h"
 
 namespace crystal::graphics::wgpu {
 
@@ -19,6 +19,7 @@ struct Resources {
   ::wgpu::raii::Texture surface_texture;
   ::wgpu::raii::Sampler surface_sampler;
   ::wgpu::raii::Buffer camera_uniform;
+  ::wgpu::raii::Buffer bvh_storage;
 };
 
 std::expected<Resources, Error> CreateResources(
@@ -30,6 +31,12 @@ std::expected<::wgpu::TextureView, Error> CreateSurfaceTextureView(
 std::expected<void, Error> WriteCameraUniform(const Camera& camera,
                                               Resources& resources,
                                               ::wgpu::Queue& queue);
-}
+
+std::expected<bool, Error> WriteBVHStorage(const BVH& bvh,
+                                           Resources& resources,
+                                           ::wgpu::Queue& queue,
+                                           ::wgpu::Device& device);
+
+}  // namespace crystal::graphics::wgpu
 
 #endif

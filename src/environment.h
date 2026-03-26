@@ -7,7 +7,8 @@
 #include "glfw/environment.h"
 #include "wgpu/environment.h"
 #include "CrystalGraphics/error.h"
-#include "CrystalGraphics/Camera.h"
+#include "CrystalGraphics/camera.h"
+#include "CrystalGraphics/scene.h"
 
 namespace crystal::graphics {
 
@@ -24,7 +25,7 @@ class Env {
   std::expected<void, Error> Sync();
   std::expected<void, Error> Term();
 
-  std::expected<void, Error> View(const Camera& camera);
+  std::expected<void, Error> View(const Scene& scene, const Camera& camera);
 
  private:
   glfw::Env glfw_env_;

@@ -11,8 +11,9 @@
 
 #include "CrystalGraphics/error.h"
 #include "CrystalGraphics/camera.h"
+#include "src/pathtracing/scene_data.h"
 #include "compute.h"
-#include "util.h"
+#include "resource.h"
 
 namespace crystal::graphics::wgpu {
 
@@ -32,7 +33,8 @@ class Env {
   operator bool() const;
 
   /* View */
-  std::expected<void, Error> View(const Camera& camera);
+  std::expected<void, Error> View(const SceneData& scene_data,
+                                  const Camera& camera);
 
  private:
   ::wgpu::raii::Instance instance_;
@@ -41,6 +43,7 @@ class Env {
   /* Resources */
   Resources resources_;
   /* Pipelines */
+  ComputeBindGroupLayouts compute_bindgroup_layouts_;
   ComputeBindGroups compute_bindgroups_;
   ::wgpu::raii::ComputePipeline compute_pipeline_;
   ::wgpu::raii::BindGroup render_bindgroup_;
@@ -52,6 +55,7 @@ class Env {
            ::wgpu::Device&& device,
            ::wgpu::Surface&& surface,
            Resources&& resources,
+           ComputeBindGroupLayouts&& compute_bindgroup_layouts,
            ComputeBindGroups&& compute_bindgroups,
            ::wgpu::ComputePipeline&& compute_pipeline,
            ::wgpu::BindGroup&& render_bindgroup,
@@ -61,6 +65,7 @@ class Env {
       device_(std::move(device)),
       surface_(std::move(surface)),
       resources_(std::move(resources)),
+      compute_bindgroup_layouts_(std::move(compute_bindgroup_layouts)),
       compute_bindgroups_(std::move(compute_bindgroups)),
       compute_pipeline_(std::move(compute_pipeline)),
       render_bindgroup_(std::move(render_bindgroup)),

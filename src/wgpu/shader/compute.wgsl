@@ -1,6 +1,7 @@
 /* Data Flow */
 @group(0) @binding(0) var target_texture: texture_storage_2d<rgba8unorm, write>;
 @group(1) @binding(0) var<uniform> camera: Camera;
+@group(2) @binding(0) var<storage, read> tlas: array<TLASNode>;
 
 /* Type */
 struct Primitive {
@@ -14,6 +15,12 @@ struct Camera {
 struct Ray {
   pos: vec3f,
   dir: vec3f,
+};
+struct TLASNode {
+  lb: vec3f,
+  lchild_primitive_offset: u32,
+  ub: vec3f,
+  primitive_count: u32,
 };
 
 /* Constant */

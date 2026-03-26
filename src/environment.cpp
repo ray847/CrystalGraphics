@@ -1,6 +1,7 @@
 #include <memory>
 
 #include "CrystalGraphics/environment.h"
+#include "pathtracing/scene_data.h"
 #include "glfw/environment.h"
 #include "environment.h"
 #include "global.h"
@@ -53,8 +54,10 @@ std::expected<void, Error> Env::Term() {
   return {};
 }
 
-std::expected<void, Error> Env::View(const Camera& camera) {
-  auto render_res = wgpu_env_.View(camera);
+std::expected<void, Error> Env::View(const Scene& scene, const Camera& camera) {
+  /* Process the scene data. */
+  SceneData scene_data{ scene };
+  auto render_res = wgpu_env_.View(scene_data, camera);
   if (!render_res) return std::unexpected(render_res.error());
   return {};
 }

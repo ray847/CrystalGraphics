@@ -17,6 +17,11 @@ class BVH {
   /* Constructor */
   BVH(const Scene& scene);
 
+  /* Accessor */
+  const auto& TLAS() const {
+    return tlas_nodes_;
+  }
+
  private:
   struct BoundedMesh {
     AABB aabb;
