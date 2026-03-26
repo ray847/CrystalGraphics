@@ -12,8 +12,13 @@ int main() {
     std::cerr << init_res.error() << std::endl;
     abort();
   }
+  auto scene =
+      crystal::graphics::LoadScene("asset/Box.gltf");
+  if (!scene) {
+    std::cout << scene.error() << std::endl;
+    abort();
+  }
   /* Run for some seconds. */
-  crystal::graphics::Scene scene{};
   uint64_t counter = 0;
   auto st = std::chrono::high_resolution_clock::now();
   while (std::chrono::high_resolution_clock::now() - st
@@ -28,7 +33,7 @@ int main() {
       .direction = { -std::cos(angle), -std::sin(angle), 0 },
       .viewport = { 1.960, 1.080 }
     };
-    auto view_res = crystal::graphics::View(scene, camera);
+    auto view_res = crystal::graphics::View(*scene, camera);
     //std::cout << "\rLoop: " << counter;
     if (!view_res) [[unlikely]] {
       std::cerr << view_res.error() << std::endl;

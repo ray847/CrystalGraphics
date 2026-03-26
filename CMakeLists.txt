@@ -12,7 +12,7 @@ add_subdirectory(lib/CrystalSpatial)
 add_subdirectory(lib/glfw)
 add_subdirectory(lib/WebGPU-distribution)
 add_subdirectory(lib/glfw3webgpu)
-add_subdirectory(lib/tinygltf)
+add_subdirectory(lib/cgltf)
 
 # Internal Library
 add_library(CrystalGraphics)
@@ -21,12 +21,15 @@ target_sources(CrystalGraphics
     src/graphics.cpp
     src/error.cpp
     src/environment.cpp
-    src/model.cpp
     src/camera.cpp
+    src/vertex.cpp
+    src/mesh.cpp
     src/scene.cpp
     src/api.cpp
     src/view.cpp
     src/error_stack.h
+    src/cgltf_implementation.cpp
+    src/pathtracing/bvh.cpp
     src/glfw/global.h
     src/glfw/environment.h
     src/glfw/environment.cpp
@@ -60,11 +63,11 @@ target_link_libraries(CrystalGraphics
   PUBLIC
     CrystalBase
     CrystalSpatial
+    cgltf
   PRIVATE
     glfw
     webgpu
     glfw3webgpu
-    tinygltf
 )
 
 if (CMAKE_CURRENT_SOURCE_DIR STREQUAL CMAKE_SOURCE_DIR)

@@ -4,7 +4,6 @@
 #include "error.h"
 #include "environment.h"
 #include "scene.h"
-#include "model.h"
 #include "api.h"
 
 #endif
