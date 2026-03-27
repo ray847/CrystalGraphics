@@ -7,13 +7,14 @@
 #include <glm/common.hpp>
 #include <glm/ext/vector_float3.hpp>
 
-#include "CrystalGraphics/mesh.h"
+#include "CrystalGraphics/scene.h"
 #include "CrystalGraphics/vertex.h"
 
 namespace crystal::graphics {
 
 class AABB {
  public:
+  using Primitive = Scene::Primitive;
   /* Variables */
   glm::vec3 lb_ = { std::numeric_limits<float>::max(),
                     std::numeric_limits<float>::max(),
@@ -26,12 +27,11 @@ class AABB {
   AABB() = default;
   AABB(glm::vec3 lb, glm::vec3 ub) : lb_(lb), ub_(ub) {
   }
-  AABB(const Mesh& mesh, const VertexContainer& vertices) {
+  AABB(const Primitive& mesh, const VertexContainer& vertices) {
     for (uint32_t i = mesh.vertex_offset;
          i < mesh.vertex_offset + mesh.vertex_count;
-         ++i) {
+         ++i)
       Merge(vertices[i].position);
-    }
   }
 
   /* Functions */

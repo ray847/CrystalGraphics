@@ -7,15 +7,20 @@
 #include <glm/common.hpp>
 #include <CrystalSpatial/spatial.h>
 
-#include "CrystalSpatial/transformation/affine.h"
+#include "public.h"
 #include "vertex.h"
-#include "mesh.h"
 #include "error.h"
 
 namespace crystal::graphics {
 
 class Scene {
  public:
+  struct Primitive {
+    ssize_t vertex_offset;
+    ssize_t vertex_count;
+    ssize_t index_offset;
+    ssize_t index_count;
+  };
 
  private:
   /* Space Definition */
@@ -24,12 +29,12 @@ class Scene {
     crystal::spatial::AffineTrans<3, float> operator()(const Trans& t) const {
       return { Matrix() * t.Matrix() };
     }
-    Mesh operator()(const Mesh& mesh) const {
+    Primitive operator()(const Primitive& prim) const {
       assert(false && "No transforming meshes for now.");
-      return mesh;
+      return prim;
     }
   };
-  using SpaceDef = spatial::SpaceDef<Trans, Mesh>;
+  using SpaceDef = spatial::SpaceDef<Trans, Primitive>;
 
   /* Variables */
   VertexContainer vertices_;

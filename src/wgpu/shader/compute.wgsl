@@ -58,7 +58,7 @@ fn CameraRay(coord: vec2f) -> Ray {
 }
 fn RayColor(ray: Ray) -> vec3f {
   let hit_info = RayHit(ray);
-  let brightness: f32 = clamp(hit_info.val / 20.0, 0.0, 1.0);
+  let brightness: f32 = clamp(hit_info.val / 50.0, 0.0, 1.0);
   return vec3f(brightness, brightness, brightness);
 }
 struct RayHitInfo {

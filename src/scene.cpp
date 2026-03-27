@@ -1,6 +1,7 @@
-#include <filesystem>
 
 #include <cgltf.h>
+
+#include <filesystem>
 
 #include "CrystalGraphics/vertex.h"
 #include "glm/trigonometric.hpp"
@@ -9,6 +10,8 @@
 namespace crystal::graphics {
 
 std::expected<Scene, Error> LoadScene(std::filesystem::path file) {
+  using Primitive = Scene::Primitive;
+
   Scene res;
   VertexContainer& verticies = res.vertices_;
   std::vector<uint32_t>& indices = res.indicies_;
@@ -31,8 +34,7 @@ std::expected<Scene, Error> LoadScene(std::filesystem::path file) {
   }
 
   /* Extrace Meshes & Vertices. */
-  std::vector<Mesh> meshes;
-  meshes.resize(data->meshes_count);
+  std::vector<std::vector<Primitive>> primitives(data->meshes_count);
   for (cgltf_size i = 0; i < data->meshes_count; ++i) {
     const cgltf_mesh& mesh = data->meshes[i];
     /* Record data starting point. */
@@ -56,7 +58,7 @@ std::expected<Scene, Error> LoadScene(std::filesystem::path file) {
       uint32_t primitive_vertex_offset = verticies.size();
       verticies.resize(verticies.size() + primitive_vertex_count);
       total_vertices_for_mesh += primitive_vertex_count;
-      
+
       /* Vertex Data */
       for (cgltf_size k = 0; k < primitive.attributes_count; ++k) {
         const cgltf_attribute& attribute = primitive.attributes[k];
@@ -64,16 +66,22 @@ std::expected<Scene, Error> LoadScene(std::filesystem::path file) {
         if (attribute.type == cgltf_attribute_type_position) {
           for (cgltf_size v = 0; v < accessor->count; ++v) {
             cgltf_accessor_read_float(
-                accessor, v, &verticies[primitive_vertex_offset + v].position.x, 3);
+                accessor,
+                v,
+                &verticies[primitive_vertex_offset + v].position.x,
+                3);
           }
         } else if (attribute.type == cgltf_attribute_type_normal) {
           for (cgltf_size v = 0; v < accessor->count; ++v) {
             cgltf_accessor_read_float(
-                accessor, v, &verticies[primitive_vertex_offset + v].normal.x, 3);
+                accessor,
+                v,
+                &verticies[primitive_vertex_offset + v].normal.x,
+                3);
           }
         }
       }
-      
+
       /* Indices */
       cgltf_accessor* indexAccessor = primitive.indices;
       if (indexAccessor) {
@@ -83,17 +91,20 @@ std::expected<Scene, Error> LoadScene(std::filesystem::path file) {
           indices.push_back(local_index + primitive_vertex_offset);
         }
       }
+
+      /* Primitives */
+      primitives[i].push_back(
+          Primitive{ .vertex_offset = primitive_vertex_offset,
+                     .vertex_count = primitive_vertex_count,
+                     .index_offset = current_index_offset,
+                     .index_count = static_cast<ssize_t>(
+                         primitive.indices ? primitive.indices->count : 0) });
     }
-    /* Save data. */
-    meshes[i] = Mesh{ .vertex_offset = current_vertex_offset,
-                      .vertex_count = total_vertices_for_mesh,
-                      .index_offset = current_index_offset,
-                      .index_count = total_indices_for_mesh };
   }
 
   /* Extract nodes. */
   auto root_ss = space.RootSubSpace();
-  
+
   auto extract_node = [&](this auto&& self,
                           const cgltf_node* node,
                           decltype(root_ss) subspace) -> void {
@@ -102,26 +113,31 @@ std::expected<Scene, Error> LoadScene(std::filesystem::path file) {
     if (node->has_scale)
       trans.scale = { node->scale[0], node->scale[1], node->scale[2] };
     if (node->has_rotation)
-      trans.rotation = {
-        node->rotation[3], node->rotation[0], node->rotation[1], node->rotation[2]
-      };
+      trans.rotation = { node->rotation[3],
+                         node->rotation[0],
+                         node->rotation[1],
+                         node->rotation[2] };
     if (node->has_translation)
-      trans.translate = { node->translation[0], node->translation[1], node->translation[2] };
-      
+      trans.translate = { node->translation[0],
+                          node->translation[1],
+                          node->translation[2] };
+
     assert(!node->has_matrix && "Cannot extract transformation from matrix.");
     subspace.Trans() = trans;
-    
+
     if (node->mesh) {
       uint32_t mesh_idx = node->mesh - data->meshes;
-      /* Meshes are indexed directly from the space. */
-      (void)subspace.CreateObj<Mesh>(meshes[mesh_idx]);
+
+      for (const auto& prim : primitives[mesh_idx]) {
+        (void)subspace.CreateObj<Primitive>(prim);
+      }
     }
 
     /* Recursion. */
     for (cgltf_size i = 0; i < node->children_count; ++i)
       self(node->children[i], subspace.CreateChild());
   };
-  
+
   const cgltf_scene* scene = data->scene;
   for (cgltf_size i = 0; i < scene->nodes_count; ++i)
     extract_node(scene->nodes[i], root_ss.CreateChild());

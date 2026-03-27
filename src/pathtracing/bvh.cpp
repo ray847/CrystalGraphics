@@ -3,7 +3,6 @@
 #include <ranges>
 #include <vector>
 
-#include "CrystalGraphics/mesh.h"
 #include "CrystalGraphics/scene.h"
 #include "aabb.h"
 #include "bvh.h"
@@ -11,8 +10,9 @@
 namespace crystal::graphics {
 
 BVH::BVH(const Scene& scene) {
-  std::vector<BoundedMesh> bounded_meshes;
-  bounded_meshes.reserve(scene.space_.ObjView<Mesh>().size());
+  using Primitive = Scene::Primitive;
+  std::vector<BoundedMesh> bounded_prims;
+  bounded_prims.reserve(scene.space_.ObjView<Primitive>().size());
   auto trans_aabb = [](const AABB& aabb, const glm::mat4& matrix) {
     glm::vec3 lb = glm::vec3(matrix[3]);
     glm::vec3 ub = lb;
@@ -31,17 +31,18 @@ BVH::BVH(const Scene& scene) {
     }
     return AABB{ lb, ub };
   };
-  for (auto [i, mesh] : std::views::enumerate(scene.space_.ObjView<Mesh>())) {
-    auto world_trans = mesh.SubSpaceIdx().AbsTrans();
-    BoundedMesh res = { .aabb = trans_aabb(AABB{ *mesh, scene.vertices_ },
+  for (auto [i, prim] :
+       std::views::enumerate(scene.space_.ObjView<Primitive>())) {
+    auto world_trans = prim.SubSpaceIdx().AbsTrans();
+    BoundedMesh res = { .aabb = trans_aabb(AABB{ *prim, scene.vertices_ },
                                            world_trans.mat),
                         .mesh_idx = static_cast<uint32_t>(i) };
     res.center = res.aabb.Center();
-    bounded_meshes.push_back(res);
+    bounded_prims.push_back(res);
   }
-  tlas_nodes_.reserve(bounded_meshes.size() * 2);
+  tlas_nodes_.reserve(bounded_prims.size() * 2);
   tlas_nodes_.emplace_back();
-  Build(0, 0, bounded_meshes.size(), bounded_meshes);
+  Build(0, 0, bounded_prims.size(), bounded_prims);
 }
 
 void BVH::Build(uint32_t node_idx,

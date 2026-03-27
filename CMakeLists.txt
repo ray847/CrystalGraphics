@@ -19,11 +19,11 @@ add_library(CrystalGraphics)
 target_sources(CrystalGraphics
   PRIVATE
     src/graphics.cpp
+    src/public.cpp
     src/error.cpp
     src/environment.cpp
     src/camera.cpp
     src/vertex.cpp
-    src/mesh.cpp
     src/scene.cpp
     src/api.cpp
     src/view.cpp
