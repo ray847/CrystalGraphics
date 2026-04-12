@@ -45,6 +45,8 @@ class Scene {
   Scene() = default;
   friend std::expected<Scene, Error> LoadScene(std::filesystem::path file);
   friend class BVH;
+  friend class TLAS;
+  friend class BLAS;
 };
 
 std::expected<Scene, Error> LoadScene(std::filesystem::path file);

@@ -1,11 +1,11 @@
+#include "resource.h"
+
 #include <cmath>
 #include <webgpu/webgpu.hpp>
 
 #include "CrystalGraphics/camera.h"
 #include "global.h"
 #include "src/pathtracing/bvh.h"
-#include "src/pathtracing/bvh_node.h"
-#include "resource.h"
 
 namespace crystal::graphics::wgpu {
 
@@ -56,14 +56,12 @@ std::expected<Resources, Error> CreateResources(
       }());
   if (auto e = global::error_stack.Pop()) return std::unexpected(*e);
   /* BVH Storage */
-  auto bvh_storage = CreateBVHStorage(4 , device);
+  auto bvh_storage = CreateBVHStorage(4, device);
   if (!bvh_storage) return std::unexpected(bvh_storage.error());
-  return Resources{
-    .surface_texture = std::move(surface_texture),
-    .surface_sampler = std::move(surface_sampler),
-    .camera_uniform = std::move(camera_uniform),
-    .bvh_storage = std::move(*bvh_storage)
-  };
+  return Resources{ .surface_texture = std::move(surface_texture),
+                    .surface_sampler = std::move(surface_sampler),
+                    .camera_uniform = std::move(camera_uniform),
+                    .bvh_storage = std::move(*bvh_storage) };
 }
 
 std::expected<::wgpu::TextureView, Error> CreateSurfaceTextureView(
@@ -105,7 +103,7 @@ std::expected<bool, Error> AssertBVHStorageSize(const BVH& bvh,
                                                 ::wgpu::Device& device) {
   auto& storage = resources.bvh_storage;
   std::size_t capacity = storage->getSize();
-  std::size_t size = bvh.TLAS().size() * sizeof(TLASNode);
+  std::size_t size = bvh.TLAS().Nodes().size() * sizeof(TLASNode);
   if (capacity < size) [[unlikely]] { // perform resizing
     storage = ::wgpu::raii::Buffer{ nullptr }; // trigger buffer release
     auto create_storage_res =
@@ -127,8 +125,8 @@ std::expected<bool, Error> WriteBVHStorage(const BVH& bvh,
   /* Write buffer. */
   queue.writeBuffer(*resources.bvh_storage,
                     0,
-                    static_cast<const void*>(bvh.TLAS().data()),
-                    bvh.TLAS().size() * sizeof(TLASNode));
+                    static_cast<const void*>(bvh.TLAS().Nodes().data()),
+                    bvh.TLAS().Nodes().size() * sizeof(TLASNode));
   if (auto e = global::error_stack.Pop()) return std::unexpected(*e);
   return *assert_size_res;
 }
@@ -141,7 +139,7 @@ std::expected<::wgpu::Buffer, Error> CreateBVHStorage(std::size_t size,
         desc.size = size;
         desc.usage =
             ::wgpu::BufferUsage::CopyDst | ::wgpu::BufferUsage::Storage;
-        desc.label = ::wgpu::StringView{"BVH Storage Buffer"};
+        desc.label = ::wgpu::StringView{ "BVH Storage Buffer" };
         return desc;
       }());
   if (auto e = global::error_stack.Pop()) return std::unexpected(*e);

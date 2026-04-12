@@ -29,7 +29,6 @@ target_sources(CrystalGraphics
     src/view.cpp
     src/error_stack.h
     src/cgltf_implementation.cpp
-    src/pathtracing/bvh.cpp
     src/glfw/global.h
     src/glfw/environment.h
     src/glfw/environment.cpp
