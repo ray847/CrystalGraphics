@@ -1,16 +1,16 @@
 #ifndef SRC_WGPU_RESOURCE_H_
 #define SRC_WGPU_RESOURCE_H_
 
-#include <expected>
-
 #include <GLFW/glfw3.h>
 #include <glfw3webgpu.h>
 #include <webgpu/webgpu.h>
+
+#include <expected>
 #include <webgpu/webgpu-raii.hpp>
 #include <webgpu/webgpu.hpp>
 
-#include "CrystalGraphics/error.h"
 #include "CrystalGraphics/camera.h"
+#include "CrystalGraphics/error.h"
 #include "src/pathtracing/bvh.h"
 
 namespace crystal::graphics::wgpu {
@@ -19,7 +19,8 @@ struct Resources {
   ::wgpu::raii::Texture surface_texture;
   ::wgpu::raii::Sampler surface_sampler;
   ::wgpu::raii::Buffer camera_uniform;
-  ::wgpu::raii::Buffer bvh_storage;
+  ::wgpu::raii::Buffer tlas_storage;
+  ::wgpu::raii::Buffer blas_storage;
 };
 
 std::expected<Resources, Error> CreateResources(

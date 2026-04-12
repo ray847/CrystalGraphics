@@ -1,12 +1,12 @@
 #ifndef SRC_WGPU_COMPUTE_H_
 #define SRC_WGPU_COMPUTE_H_
 
-#include <expected>
-#include <array>
-
 #include <GLFW/glfw3.h>
 #include <glfw3webgpu.h>
 #include <webgpu/webgpu.h>
+
+#include <array>
+#include <expected>
 #include <webgpu/webgpu-raii.hpp>
 #include <webgpu/webgpu.hpp>
 
@@ -17,7 +17,7 @@ namespace crystal::graphics::wgpu {
 struct ComputeBindGroupLayouts {
   /**
    * Compute BindGroup Layout.
-   * 
+   *
    * 0. Target Texture
    * 1. Camera, BVH
    * 2. VBO, BVH
@@ -35,15 +35,17 @@ struct ComputeBindGroupLayouts {
   }
   ComputeBindGroupLayouts(const ComputeBindGroupLayouts&) = delete;
   ComputeBindGroupLayouts& operator=(const ComputeBindGroupLayouts&) = delete;
-  ComputeBindGroupLayouts(ComputeBindGroupLayouts&& other) noexcept 
-      : layouts{other.layouts} {
-    other.layouts = {nullptr, nullptr, nullptr};
+  ComputeBindGroupLayouts(ComputeBindGroupLayouts&& other) noexcept :
+      layouts{ other.layouts } {
+    other.layouts = { nullptr, nullptr, nullptr };
   }
   ComputeBindGroupLayouts& operator=(ComputeBindGroupLayouts&& other) noexcept {
     if (this != &other) {
-      for (auto& layout : layouts) { if (layout) layout.release(); }
+      for (auto& layout : layouts) {
+        if (layout) layout.release();
+      }
       layouts = other.layouts;
-      other.layouts = {nullptr, nullptr, nullptr};
+      other.layouts = { nullptr, nullptr, nullptr };
     }
     return *this;
   }
@@ -75,15 +77,17 @@ struct ComputeBindGroups {
   }
   ComputeBindGroups(const ComputeBindGroups&) = delete;
   ComputeBindGroups& operator=(const ComputeBindGroups&) = delete;
-  ComputeBindGroups(ComputeBindGroups&& other) noexcept 
-      : bindgroups{other.bindgroups} {
-    other.bindgroups = {nullptr, nullptr, nullptr};
+  ComputeBindGroups(ComputeBindGroups&& other) noexcept :
+      bindgroups{ other.bindgroups } {
+    other.bindgroups = { nullptr, nullptr, nullptr };
   }
   ComputeBindGroups& operator=(ComputeBindGroups&& other) noexcept {
     if (this != &other) {
-      for (auto& layout : bindgroups) { if (layout) layout.release(); }
+      for (auto& layout : bindgroups) {
+        if (layout) layout.release();
+      }
       bindgroups = other.bindgroups;
-      other.bindgroups = {nullptr, nullptr, nullptr};
+      other.bindgroups = { nullptr, nullptr, nullptr };
     }
     return *this;
   }
@@ -111,13 +115,15 @@ std::expected<ComputeBindGroups, Error> CreateComputeBindGroups(
     /* Group 1 */
     ::wgpu::Buffer& camera_uniform,
     /* Group 2 */
-    ::wgpu::Buffer& bvh_storage,
+    ::wgpu::Buffer& tlas_storage,
+    ::wgpu::Buffer& blas_storage,
     ComputeBindGroupLayouts& layouts,
     ::wgpu::Device& device);
 
 std::expected<void, Error> UpdateComputeBindGroup2(
     ComputeBindGroups& bindgroups,
-    ::wgpu::Buffer& bvh_storage,
+    ::wgpu::Buffer& tlas_storage,
+    ::wgpu::Buffer& blas_storage,
     ComputeBindGroupLayouts& layouts,
     ::wgpu::Device& device);
 
@@ -128,6 +134,6 @@ std::expected<void, Error> EncodeComputePass(::wgpu::CommandEncoder& encoder,
                                              ::wgpu::ComputePipeline& pipeline,
                                              ComputeBindGroups& bindgroup);
 
-}
+}  // namespace crystal::graphics::wgpu
 
 #endif

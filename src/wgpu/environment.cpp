@@ -1,6 +1,7 @@
 #include "environment.h"
 
 #include <GLFW/glfw3.h>
+
 #include <webgpu/webgpu-raii.hpp>
 
 #include "adapter.h"
@@ -27,8 +28,7 @@ std::expected<Env, Error> CreateEnv(GLFWwindow* window) {
   auto device = CreateDevice(*adapter);
   if (!device) return std::unexpected(device.error());
   /* Configure Surface */
-  auto surface_config =
-      ConfigSurface(*surface, *adapter, *device);
+  auto surface_config = ConfigSurface(*surface, *adapter, *device);
   if (!surface_config) return std::unexpected(surface_config.error());
   /* Resources */
   auto resources = CreateResources(*surface_config, *device);
@@ -45,7 +45,8 @@ std::expected<Env, Error> CreateEnv(GLFWwindow* window) {
     return std::unexpected(compute_bindgroup_layouts.error());
   auto compute_bindgroup = CreateComputeBindGroups(*surface_texture_view,
                                                    *resources->camera_uniform,
-                                                   *resources->bvh_storage,
+                                                   *resources->tlas_storage,
+                                                   *resources->blas_storage,
                                                    *compute_bindgroup_layouts,
                                                    *device);
   if (!compute_bindgroup) return std::unexpected(compute_bindgroup.error());
@@ -85,8 +86,7 @@ std::expected<void, Error> Env::Sync() {
   if (!instance_)
     return std::unexpected(Error{ "WebGPU environment already terminated." });
   instance_->processEvents();
-  if (surface_)
-    surface_->present();
+  if (surface_) surface_->present();
   if (auto error = global::error_stack.Pop()) return std::unexpected(*error);
   return {};
 }
@@ -94,7 +94,7 @@ std::expected<void, Error> Env::Sync() {
 std::expected<void, Error> Env::Term() {
   if (!instance_)
     return std::unexpected(Error{ "WebGPU environment already terminated." });
-  queue_ = ::wgpu::raii::Queue{nullptr};
+  queue_ = ::wgpu::raii::Queue{ nullptr };
   surface_->unconfigure();
   surface_ = ::wgpu::raii::Surface{ nullptr };
   if (auto e = global::error_stack.Pop()) return std::unexpected(*e);

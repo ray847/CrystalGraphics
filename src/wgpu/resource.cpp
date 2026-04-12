@@ -1,11 +1,12 @@
 #include "resource.h"
 
-#include <cmath>
 #include <webgpu/webgpu.hpp>
 
 #include "CrystalGraphics/camera.h"
 #include "global.h"
+#include "src/pathtracing/blas.h"
 #include "src/pathtracing/bvh.h"
+#include "webgpu/webgpu-raii.hpp"
 
 namespace crystal::graphics::wgpu {
 
@@ -55,13 +56,17 @@ std::expected<Resources, Error> CreateResources(
         return desc;
       }());
   if (auto e = global::error_stack.Pop()) return std::unexpected(*e);
-  /* BVH Storage */
-  auto bvh_storage = CreateBVHStorage(4, device);
-  if (!bvh_storage) return std::unexpected(bvh_storage.error());
+  /* Tlas Storage */
+  auto tlas_storage = CreateBVHStorage(4, device);
+  if (!tlas_storage) return std::unexpected(tlas_storage.error());
+  /* Blas Storage */
+  auto blas_storage = CreateBVHStorage(4, device);
+  if (!blas_storage) return std::unexpected(blas_storage.error());
   return Resources{ .surface_texture = std::move(surface_texture),
                     .surface_sampler = std::move(surface_sampler),
                     .camera_uniform = std::move(camera_uniform),
-                    .bvh_storage = std::move(*bvh_storage) };
+                    .tlas_storage = std::move(*tlas_storage),
+                    .blas_storage = std::move(*blas_storage) };
 }
 
 std::expected<::wgpu::TextureView, Error> CreateSurfaceTextureView(
@@ -101,19 +106,29 @@ std::expected<void, Error> WriteCameraUniform(const Camera& camera,
 std::expected<bool, Error> AssertBVHStorageSize(const BVH& bvh,
                                                 Resources& resources,
                                                 ::wgpu::Device& device) {
-  auto& storage = resources.bvh_storage;
-  std::size_t capacity = storage->getSize();
-  std::size_t size = bvh.TLAS().Nodes().size() * sizeof(TLASNode);
-  if (capacity < size) [[unlikely]] { // perform resizing
-    storage = ::wgpu::raii::Buffer{ nullptr }; // trigger buffer release
-    auto create_storage_res =
-        CreateBVHStorage(std::max(capacity * 2, size), device);
-    if (!create_storage_res) return std::unexpected(create_storage_res.error());
-    storage = std::move(*create_storage_res);
-    if (auto e = global::error_stack.Pop()) return std::unexpected(*e);
-    return true;
-  }
-  return false;
+  auto assert_storage = [&device](
+                            ::wgpu::raii::Buffer& storage,
+                            std::size_t size) -> std::expected<bool, Error> {
+    std::size_t capacity = storage->getSize();
+    if (capacity < size) [[unlikely]] { // perform resizing
+      storage = ::wgpu::raii::Buffer{ nullptr }; // trigger buffer release
+      auto create_storage_res =
+          CreateBVHStorage(std::max(capacity * 2, size), device);
+      if (!create_storage_res)
+        return std::unexpected(create_storage_res.error());
+      storage = std::move(*create_storage_res);
+      if (auto e = global::error_stack.Pop()) return std::unexpected(*e);
+      return true;
+    }
+    return false;
+  };
+  auto assert_blas_res = assert_storage(
+      resources.blas_storage, bvh.BLAS().Nodes().size() * sizeof(BLASNode));
+  if (!assert_blas_res) return std::unexpected(assert_blas_res.error());
+  auto assert_tlas_res = assert_storage(
+      resources.tlas_storage, bvh.TLAS().Nodes().size() * sizeof(TLASNode));
+  if (!assert_tlas_res) return std::unexpected(assert_tlas_res.error());
+  return *assert_blas_res || *assert_tlas_res;
 }
 
 std::expected<bool, Error> WriteBVHStorage(const BVH& bvh,
@@ -123,10 +138,14 @@ std::expected<bool, Error> WriteBVHStorage(const BVH& bvh,
   auto assert_size_res = AssertBVHStorageSize(bvh, resources, device);
   if (!assert_size_res) return std::unexpected(assert_size_res.error());
   /* Write buffer. */
-  queue.writeBuffer(*resources.bvh_storage,
+  queue.writeBuffer(*resources.tlas_storage,
                     0,
                     static_cast<const void*>(bvh.TLAS().Nodes().data()),
                     bvh.TLAS().Nodes().size() * sizeof(TLASNode));
+  queue.writeBuffer(*resources.blas_storage,
+                    0,
+                    static_cast<const void*>(bvh.BLAS().Nodes().data()),
+                    bvh.BLAS().Nodes().size() * sizeof(BLASNode));
   if (auto e = global::error_stack.Pop()) return std::unexpected(*e);
   return *assert_size_res;
 }

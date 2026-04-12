@@ -1,3 +1,4 @@
+#include "CrystalGraphics/scene.h"
 
 #include <cgltf.h>
 
@@ -5,14 +6,13 @@
 
 #include "CrystalGraphics/vertex.h"
 #include "glm/trigonometric.hpp"
-#include "CrystalGraphics/scene.h"
 
 namespace crystal::graphics {
 
 std::expected<Scene, Error> LoadScene(std::filesystem::path file) {
   using Primitive = Scene::Primitive;
 
-  Scene res;
+  Scene res{ file };
   VertexContainer& verticies = res.vertices_;
   std::vector<uint32_t>& indices = res.indicies_;
   spatial::Space<Scene::SpaceDef>& space = res.space_;
@@ -97,7 +97,7 @@ std::expected<Scene, Error> LoadScene(std::filesystem::path file) {
           Primitive{ .vertex_offset = primitive_vertex_offset,
                      .vertex_count = primitive_vertex_count,
                      .index_offset = current_index_offset,
-                     .index_count = static_cast<ssize_t>(
+                     .index_count = static_cast<size32_t>(
                          primitive.indices ? primitive.indices->count : 0) });
     }
   }

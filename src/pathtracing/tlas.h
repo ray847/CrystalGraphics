@@ -1,10 +1,9 @@
 #ifndef CRYSTALGRAPHICS_SRC_PATHTRACING_TLAS_H_
 #define CRYSTALGRAPHICS_SRC_PATHTRACING_TLAS_H_
 
+#include <glm/ext/vector_float3.hpp>
 #include <limits>
 #include <vector>
-
-#include <glm/ext/vector_float3.hpp>
 
 #include "CrystalGraphics/public.h"
 #include "CrystalGraphics/scene.h"
@@ -21,20 +20,20 @@ struct alignas(32) TLASNode {
     std::numeric_limits<float>::max(),
   };
   union {
-    ssize_t child = 0;
-    ssize_t primitive_offset;
+    size32_t child = 0;
+    size32_t blas_root;
   };
   glm::vec3 ub = {
     std::numeric_limits<float>::min(),
     std::numeric_limits<float>::min(),
     std::numeric_limits<float>::min(),
   };
-  ssize_t primitive_count = 0;
+  size32_t primitive_idx = 0;
 };
 
 class TLAS {
  public:
-  TLAS(const Scene& scene) {
+  TLAS(const Scene& scene, const std::vector<size32_t>& blas_roots) {
     std::vector<BoundedPrimitive> bounded_prims;
     bounded_prims.reserve(scene.space_.ObjView<Primitive>().size());
     auto trans_aabb = [](const AABB& aabb, const glm::mat4& matrix) {
@@ -60,14 +59,15 @@ class TLAS {
       auto world_trans = prim.SubSpaceIdx().AbsTrans();
       BoundedPrimitive res = {
         .aabb = trans_aabb(AABB{ *prim, scene.vertices_ }, world_trans.mat),
-        .prim_idx = static_cast<ssize_t>(i)
+        .prim_idx = static_cast<size32_t>(i),
+        .blas_root = blas_roots[static_cast<std::size_t>(i)]
       };
       res.center = res.aabb.Center();
       bounded_prims.push_back(res);
     }
     nodes_.reserve(bounded_prims.size() * 2);
     nodes_.emplace_back();
-    Build(0, 0, bounded_prims.size(), bounded_prims);
+    Build(0, 0, bounded_prims.size(), bounded_prims, blas_roots);
   }
 
   const auto& Nodes() const {
@@ -78,35 +78,37 @@ class TLAS {
   struct BoundedPrimitive {
     AABB aabb;
     glm::vec3 center;
-    ssize_t prim_idx;
+    size32_t prim_idx;
+    size32_t blas_root;
   };
 
   std::vector<TLASNode> nodes_;
 
-  void Build(ssize_t node_idx,
-             ssize_t l,
-             ssize_t r,
-             std::vector<BoundedPrimitive>& bounded_meshes) {
+  void Build(size32_t node_idx,
+             size32_t l,
+             size32_t r,
+             std::vector<BoundedPrimitive>& bounded_meshes,
+             const std::vector<size32_t>& blas_roots) {
     TLASNode& node = nodes_[node_idx];
-    for (ssize_t i = l; i < r; ++i) {
+    for (size32_t i = l; i < r; ++i) {
       node.lb = glm::min(node.lb, bounded_meshes[i].aabb.lb_);
       node.ub = glm::max(node.ub, bounded_meshes[i].aabb.ub_);
     }
-    ssize_t count = r - l;
-    if (count <= 2) {
-      node.primitive_offset = l;
-      node.primitive_count = count;
+    size32_t count = r - l;
+    if (count <= 1) {
+      node.blas_root = bounded_meshes[l].blas_root;
+      node.primitive_idx = bounded_meshes[l].prim_idx;
       return;
     }
     AABB center_bounds{};
-    for (ssize_t i = l; i < r; ++i)
+    for (size32_t i = l; i < r; ++i)
       center_bounds.Merge(bounded_meshes[i].center);
     auto range = center_bounds.Range();
     int split_axis = 0;
     if (range.y > range.x) split_axis = 1;
     if (range.z > range[split_axis]) split_axis = 2;
     /* Partition */
-    ssize_t mid = l + (r - l) / 2;
+    size32_t mid = l + (r - l) / 2;
     std::nth_element(bounded_meshes.begin() + l,
                      bounded_meshes.begin() + mid,
                      bounded_meshes.begin() + r,
@@ -114,12 +116,13 @@ class TLAS {
                        return x.center[split_axis] < y.center[split_axis];
                      });
     node.child = nodes_.size();
-    ssize_t lchild = node.child;
+    node.primitive_idx = -1;
+    size32_t lchild = node.child;
     nodes_.emplace_back();
     nodes_.emplace_back();
     /* Recursion */
-    Build(lchild, l, mid, bounded_meshes);
-    Build(lchild + 1, mid, r, bounded_meshes);
+    Build(lchild, l, mid, bounded_meshes, blas_roots);
+    Build(lchild + 1, mid, r, bounded_meshes, blas_roots);
   }
 };
 

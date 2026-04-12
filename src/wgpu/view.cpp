@@ -1,15 +1,14 @@
 #include <expected>
-
 #include <webgpu/webgpu-raii.hpp>
 
 #include "CrystalGraphics/camera.h"
-#include "src/pathtracing/scene_data.h"
+#include "command.h"
+#include "compute.h"
+#include "environment.h"
 #include "queue.h"
 #include "render.h"
 #include "resource.h"
-#include "environment.h"
-#include "command.h"
-#include "compute.h"
+#include "src/pathtracing/scene_data.h"
 #include "surface.h"
 
 namespace crystal::graphics::wgpu {
@@ -18,8 +17,7 @@ std::expected<void, Error> Env::View(const SceneData& scene_data,
                                      const Camera& camera) {
   /* Write Inputs */
   /* Camera */
-  auto write_camera_res =
-      WriteCameraUniform(camera, resources_, *queue_);
+  auto write_camera_res = WriteCameraUniform(camera, resources_, *queue_);
   if (!write_camera_res) return std::unexpected(write_camera_res.error());
   /* BVH */
   auto write_bvh_res =
@@ -27,20 +25,21 @@ std::expected<void, Error> Env::View(const SceneData& scene_data,
   if (!write_bvh_res) return std::unexpected(write_bvh_res.error());
   if (*write_bvh_res)
     if (auto update_res = UpdateComputeBindGroup2(compute_bindgroups_,
-                                                  *resources_.bvh_storage,
+                                                  *resources_.tlas_storage,
+                                                  *resources_.blas_storage,
                                                   compute_bindgroup_layouts_,
                                                   *device_);
         !update_res)
       return std::unexpected(update_res.error());
   /* Target View */
-        auto target_view_res{ NextTargetView(*surface_) };
+  auto target_view_res{ NextTargetView(*surface_) };
   if (!target_view_res) return std::unexpected(target_view_res.error());
   ::wgpu::raii::TextureView target_view{ std::move(*target_view_res) };
   /* Command Encoder */
   auto create_cmd_encoder_res{ CreateCommandEncoder(*device_) };
   if (!create_cmd_encoder_res)
     return std::unexpected(create_cmd_encoder_res.error());
-  ::wgpu::raii::CommandEncoder encoder {std::move(*create_cmd_encoder_res)};
+  ::wgpu::raii::CommandEncoder encoder{ std::move(*create_cmd_encoder_res) };
   /* Compute Pass */
   auto encode_compute_pass_res{ EncodeComputePass(
       *encoder, *compute_pipeline_, compute_bindgroups_) };
@@ -55,7 +54,7 @@ std::expected<void, Error> Env::View(const SceneData& scene_data,
   auto create_cmd_buffer_res{ CreateCommandBuffer(*encoder) };
   if (!create_cmd_buffer_res)
     return std::unexpected(create_cmd_buffer_res.error());
-  ::wgpu::raii::CommandBuffer cmd_buffer{std::move(*create_cmd_buffer_res)};
+  ::wgpu::raii::CommandBuffer cmd_buffer{ std::move(*create_cmd_buffer_res) };
   /* Submit */
   auto submit_res = Sumbit(*queue_, *cmd_buffer);
   if (!submit_res) return std::unexpected(submit_res.error());

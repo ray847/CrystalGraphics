@@ -1,18 +1,20 @@
+#include "compute.h"
+
 #include <webgpu/webgpu.h>
 
 #include <array>
 #include <ranges>
 
-#include "CrystalGraphics/error.h"
 #include "CrystalGraphics/camera.h"
+#include "CrystalGraphics/error.h"
 #include "global.h"
-#include "compute.h"
 #include "webgpu/webgpu.hpp"
 
 namespace crystal::graphics::wgpu {
 
 std::expected<::wgpu::BindGroup, Error> CreateComputeBindGroup2(
-    ::wgpu::Buffer& bvh_storage,
+    ::wgpu::Buffer& tlas_storage,
+    ::wgpu::Buffer& blas_storage,
     ComputeBindGroupLayouts& layouts,
     ::wgpu::Device& device);
 
@@ -21,7 +23,7 @@ std::expected<ComputeBindGroupLayouts, Error> CreateComputeBindGroupLayouts(
   /* Group 0 */
   std::array<::wgpu::BindGroupLayoutEntry, 1> group0entries{
     [&] -> ::wgpu::BindGroupLayoutEntry {
-      ::wgpu::BindGroupLayoutEntry surface_texture_entry{::wgpu::Default};
+      ::wgpu::BindGroupLayoutEntry surface_texture_entry{ ::wgpu::Default };
       surface_texture_entry.binding = 0;
       surface_texture_entry.visibility = ::wgpu::ShaderStage::Compute;
       surface_texture_entry.storageTexture.access =
@@ -47,7 +49,7 @@ std::expected<ComputeBindGroupLayouts, Error> CreateComputeBindGroupLayouts(
   /* Group 1 */
   std::array<::wgpu::BindGroupLayoutEntry, 1> group1entries{
     [&] -> ::wgpu::BindGroupLayoutEntry {
-      ::wgpu::BindGroupLayoutEntry camera_entry{::wgpu::Default};
+      ::wgpu::BindGroupLayoutEntry camera_entry{ ::wgpu::Default };
       camera_entry.binding = 0;
       camera_entry.visibility = ::wgpu::ShaderStage::Compute;
       camera_entry.buffer.type = ::wgpu::BufferBindingType::Uniform;
@@ -67,16 +69,24 @@ std::expected<ComputeBindGroupLayouts, Error> CreateComputeBindGroupLayouts(
       }());
   if (auto e = global::error_stack.Pop()) return std::unexpected(*e);
   /* Group 2 */
-  std::array<::wgpu::BindGroupLayoutEntry, 1> group2entries{
-    /* BVH */
+  std::array<::wgpu::BindGroupLayoutEntry, 2> group2entries{
+    /* TLAS */
     [&] -> ::wgpu::BindGroupLayoutEntry {
-      ::wgpu::BindGroupLayoutEntry bvh_entry{::wgpu::Default};
-      bvh_entry.binding = 0;
-      bvh_entry.visibility = ::wgpu::ShaderStage::Compute;
-      bvh_entry.buffer.type = ::wgpu::BufferBindingType::ReadOnlyStorage;
-      return bvh_entry;
-    }()
-  };
+      ::wgpu::BindGroupLayoutEntry tlas_entry{ ::wgpu::Default };
+      tlas_entry.binding = 0;
+      tlas_entry.visibility = ::wgpu::ShaderStage::Compute;
+      tlas_entry.buffer.type = ::wgpu::BufferBindingType::ReadOnlyStorage;
+      return tlas_entry;
+    }(),
+    /* BLAS */
+    [&] -> ::wgpu::BindGroupLayoutEntry {
+      ::wgpu::BindGroupLayoutEntry blas_entry{ ::wgpu::Default };
+      blas_entry.binding = 1;
+      blas_entry.visibility = ::wgpu::ShaderStage::Compute;
+      blas_entry.buffer.type = ::wgpu::BufferBindingType::ReadOnlyStorage;
+      return blas_entry;
+    }(),
+  };  // namespace crystal::graphics::wgpu
   ::wgpu::BindGroupLayout group2 =
       device.createBindGroupLayout([&] -> ::wgpu::BindGroupLayoutDescriptor {
         ::wgpu::BindGroupLayoutDescriptor desc{ ::wgpu::Default };
@@ -97,7 +107,8 @@ std::expected<ComputeBindGroups, Error> CreateComputeBindGroups(
     /* Group 1 */
     ::wgpu::Buffer& camera_uniform,
     /* Group 2 */
-    ::wgpu::Buffer& bvh_storage,
+    ::wgpu::Buffer& tlas_storage,
+    ::wgpu::Buffer& blas_storage,
     ComputeBindGroupLayouts& layouts,
     ::wgpu::Device& device) {
   /* Group 0 */
@@ -144,17 +155,20 @@ std::expected<ComputeBindGroups, Error> CreateComputeBindGroups(
       return desc;
     }())
   };
-  auto group2 = CreateComputeBindGroup2(bvh_storage, layouts, device);
+  auto group2 =
+      CreateComputeBindGroup2(tlas_storage, blas_storage, layouts, device);
   if (!group2) return std::unexpected(group2.error());
   return ComputeBindGroups{ group0, group1, *group2 };
 }
 
 std::expected<void, Error> UpdateComputeBindGroup2(
     ComputeBindGroups& bindgroups,
-    ::wgpu::Buffer& bvh_storage,
+    ::wgpu::Buffer& tlas_storage,
+    ::wgpu::Buffer& blas_storage,
     ComputeBindGroupLayouts& layouts,
     ::wgpu::Device& device) {
-  auto group2 = CreateComputeBindGroup2(bvh_storage, layouts, device);
+  auto group2 =
+      CreateComputeBindGroup2(tlas_storage, blas_storage, layouts, device);
   if (!group2) return std::unexpected(group2.error());
   bindgroups[2] = std::move(*group2);
   return {};
@@ -235,15 +249,23 @@ std::expected<void, Error> EncodeComputePass(::wgpu::CommandEncoder& encoder,
 }
 
 std::expected<::wgpu::BindGroup, Error> CreateComputeBindGroup2(
-    ::wgpu::Buffer& bvh_storage,
+    ::wgpu::Buffer& tlas_storage,
+    ::wgpu::Buffer& blas_storage,
     ComputeBindGroupLayouts& layouts,
     ::wgpu::Device& device) {
-  std::array<::wgpu::BindGroupEntry, 1> group2entries{
+  std::array<::wgpu::BindGroupEntry, 2> group2entries{
     [&] -> ::wgpu::BindGroupEntry {
       ::wgpu::BindGroupEntry bvh{ ::wgpu::Default };
       bvh.binding = 0;
-      bvh.buffer = bvh_storage;
-      bvh.size = bvh_storage.getSize();
+      bvh.buffer = tlas_storage;
+      bvh.size = tlas_storage.getSize();
+      return bvh;
+    }(),
+    [&] -> ::wgpu::BindGroupEntry {
+      ::wgpu::BindGroupEntry bvh{ ::wgpu::Default };
+      bvh.binding = 1;
+      bvh.buffer = blas_storage;
+      bvh.size = blas_storage.getSize();
       return bvh;
     }(),
   };

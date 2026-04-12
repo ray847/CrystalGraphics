@@ -1,9 +1,9 @@
-#include <cmath>
+#include <CrystalGraphics/graphics.h>
+
 #include <chrono>
+#include <cmath>
 #include <cstdlib>
 #include <iostream>
-
-#include <CrystalGraphics/graphics.h>
 
 int main() {
   auto init_res = crystal::graphics::EnvInit();
@@ -20,12 +20,12 @@ int main() {
   uint64_t counter = 0;
   auto st = std::chrono::high_resolution_clock::now();
   while (std::chrono::high_resolution_clock::now() - st
-         < std::chrono::seconds(10)) {
+         < std::chrono::seconds(30)) {
     float angle = (float)std::chrono::duration_cast<std::chrono::milliseconds>(
                       std::chrono::high_resolution_clock::now() - st)
                       .count()
-                / 1000;
-    float dis = 20.0f;
+                / 1000 / 2;
+    float dis = 1.0f;
     crystal::graphics::Camera camera{
       .position = { dis * std::cos(angle), dis * std::sin(angle), 0 },
       .direction = { -std::cos(angle), -std::sin(angle), 0 },

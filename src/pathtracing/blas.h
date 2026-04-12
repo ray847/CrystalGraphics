@@ -2,11 +2,10 @@
 #define CRYSTALGRAPHICS_SRC_PATHTRACING_BLAS_H_
 
 #include <cstdint>
+#include <glm/ext/vector_float3.hpp>
 #include <limits>
 #include <ranges>
 #include <vector>
-
-#include <glm/ext/vector_float3.hpp>
 
 #include "CrystalGraphics/scene.h"
 #include "aabb.h"
@@ -31,14 +30,19 @@ struct alignas(32) BLASNode {
 class BLAS {
  public:
   BLAS(const Scene& scene) {
+    roots_.reserve(scene.space_.ObjView<Primitive>().size());
     nodes_.reserve(scene.vertices_.size() * 2);
     triangles_.reserve(scene.vertices_.size() / 3 * 2);
     for (const auto& primitive : scene.space_.ObjView<Primitive>())
       BuildPrimitive(*primitive, scene);
   }
 
-  const auto& Data() const {
+  const auto& Nodes() const {
     return nodes_;
+  }
+
+  const auto& Roots() const {
+    return roots_;
   }
 
  private:
@@ -49,24 +53,25 @@ class BLAS {
   };
   struct TriangleInfo {
     glm::vec3 center;
-    ssize_t index;
+    size32_t index;
   };
   struct alignas(16) Triangle {
-    ssize_t i0, i1, i2;
+    size32_t i0, i1, i2;
   };
 
+  std::vector<size32_t> roots_;
   std::vector<BLASNode> nodes_;
   std::vector<Triangle> triangles_;
 
   void BuildPrimitive(const Primitive& primitive, const Scene& scene) {
-    ssize_t triangle_count = primitive.index_count / 3;
+    size32_t triangle_count = primitive.index_count / 3;
     /* Extract triangle info. */
     std::vector<TriangleInfo> triangle_info =
         std::views::iota(0u, triangle_count)
-        | std::views::transform([&](ssize_t triangle_idx) -> TriangleInfo {
-            ssize_t i0 = scene.indicies_[triangle_idx * 3 + 0];
-            ssize_t i1 = scene.indicies_[triangle_idx * 3 + 1];
-            ssize_t i2 = scene.indicies_[triangle_idx * 3 + 2];
+        | std::views::transform([&](size32_t triangle_idx) -> TriangleInfo {
+            size32_t i0 = scene.indicies_[triangle_idx * 3 + 0];
+            size32_t i1 = scene.indicies_[triangle_idx * 3 + 1];
+            size32_t i2 = scene.indicies_[triangle_idx * 3 + 2];
             const glm::vec3& v0 = scene.vertices_[i0].position;
             const glm::vec3& v1 = scene.vertices_[i1].position;
             const glm::vec3& v2 = scene.vertices_[i2].position;
@@ -75,34 +80,43 @@ class BLAS {
           })
         | std::ranges::to<std::vector>();
     /* Build tree. */
-    nodes_.emplace_back(); // root node
-    BuildTree(
-        nodes_.size() - 1, 0, triangle_count, triangle_info, primitive, scene);
+    roots_.emplace_back(nodes_.size()); // root node
+    nodes_.emplace_back();
+    // Record the global offset before building the tree
+    size32_t global_triangle_offset = triangles_.size();
+    BuildTree(nodes_.size() - 1,
+              0,
+              triangle_count,
+              triangle_info,
+              primitive,
+              scene,
+              global_triangle_offset);
     /* Extract triangles. */
     for (const auto& info : triangle_info) {
-      ssize_t idx_offset = primitive.index_offset + (info.index * 3);
+      size32_t idx_offset = primitive.index_offset + (info.index * 3);
       triangles_.emplace_back(scene.indicies_[idx_offset + 0],
                               scene.indicies_[idx_offset + 1],
                               scene.indicies_[idx_offset + 2]);
     }
   }
 
-  void BuildTree(ssize_t node_idx,
-                 ssize_t l,
-                 ssize_t r,
+  void BuildTree(size32_t node_idx,
+                 size32_t l,
+                 size32_t r,
                  std::vector<TriangleInfo>& triangle_info,
                  const Primitive& primitive,
-                 const Scene& scene) {
+                 const Scene& scene,
+                 size32_t triangle_offset) {
     BLASNode& node = nodes_[node_idx];
     /* AABB */
     node.lb = glm::vec3(std::numeric_limits<float>::max());
     node.ub = glm::vec3(std::numeric_limits<float>::lowest());
-    for (ssize_t i = l; i < r; ++i) {
-      ssize_t idx_offset =
+    for (size32_t i = l; i < r; ++i) {
+      size32_t idx_offset =
           primitive.index_offset + (triangle_info[i].index * 3);
-      ssize_t i0 = scene.indicies_[idx_offset + 0];
-      ssize_t i1 = scene.indicies_[idx_offset + 1];
-      ssize_t i2 = scene.indicies_[idx_offset + 2];
+      size32_t i0 = scene.indicies_[idx_offset + 0];
+      size32_t i1 = scene.indicies_[idx_offset + 1];
+      size32_t i2 = scene.indicies_[idx_offset + 2];
       const glm::vec3& v0 = scene.vertices_[i0].position;
       const glm::vec3& v1 = scene.vertices_[i1].position;
       const glm::vec3& v2 = scene.vertices_[i2].position;
@@ -111,9 +125,9 @@ class BLAS {
     }
 
     /* Leaf */
-    ssize_t count = r - l;
+    size32_t count = r - l;
     if (count <= 2) {
-      node.child = l;
+      node.child = triangle_offset + l;
       node.triangle_count = count;
       return;
     }
@@ -129,7 +143,7 @@ class BLAS {
     if (range.z > range[split_axis]) split_axis = 2;
 
     /* Partition */
-    ssize_t mid = l + (r - l) / 2;
+    size32_t mid = l + (r - l) / 2;
     std::nth_element(triangle_info.begin() + l,
                      triangle_info.begin() + mid,
                      triangle_info.begin() + r,
@@ -140,16 +154,28 @@ class BLAS {
     /* Child Nodes */
     node.child = nodes_.size();
     node.triangle_count = 0;
-    ssize_t left_child_idx = node.child;
+    size32_t left_child_idx = node.child;
     nodes_.emplace_back();
     nodes_.emplace_back();
 
     /* Recursion */
-    BuildTree(left_child_idx, l, mid, triangle_info, primitive, scene);
-    BuildTree(left_child_idx + 1, mid, r, triangle_info, primitive, scene);
+    BuildTree(left_child_idx,
+              l,
+              mid,
+              triangle_info,
+              primitive,
+              scene,
+              triangle_offset);
+    BuildTree(left_child_idx + 1,
+              mid,
+              r,
+              triangle_info,
+              primitive,
+              scene,
+              triangle_offset);
   }
 };
 
-}
+}  // namespace crystal::graphics
 
 #endif

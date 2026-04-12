@@ -1,26 +1,29 @@
 #ifndef CRYSTALGRAPHICS_SCENE_H_
 #define CRYSTALGRAPHICS_SCENE_H_
 
-#include <expected>
-#include <filesystem>
-
-#include <glm/common.hpp>
 #include <CrystalSpatial/spatial.h>
 
+#include <expected>
+#include <filesystem>
+#include <glm/common.hpp>
+
+#include "error.h"
 #include "public.h"
 #include "vertex.h"
-#include "error.h"
 
 namespace crystal::graphics {
 
 class Scene {
  public:
   struct Primitive {
-    ssize_t vertex_offset;
-    ssize_t vertex_count;
-    ssize_t index_offset;
-    ssize_t index_count;
+    size32_t vertex_offset;
+    size32_t vertex_count;
+    size32_t index_offset;
+    size32_t index_count;
   };
+  const auto& FilePath() const {
+    return filepath_;
+  }
 
  private:
   /* Space Definition */
@@ -37,12 +40,14 @@ class Scene {
   using SpaceDef = spatial::SpaceDef<Trans, Primitive>;
 
   /* Variables */
+  const std::filesystem::path filepath_;
   VertexContainer vertices_;
   std::vector<uint32_t> indicies_;
   spatial::Space<SpaceDef> space_;
 
   /* Constructor */
-  Scene() = default;
+  Scene(const std::filesystem::path& filepath) : filepath_(filepath) {
+  }
   friend std::expected<Scene, Error> LoadScene(std::filesystem::path file);
   friend class BVH;
   friend class TLAS;
