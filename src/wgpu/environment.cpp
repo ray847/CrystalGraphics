@@ -48,14 +48,15 @@ std::expected<Env, Error> CreateEnv(GLFWwindow* window) {
   auto compute_bindgroup_layouts = CreateComputeBindGroupLayouts(*device);
   if (!compute_bindgroup_layouts)
     return std::unexpected(compute_bindgroup_layouts.error());
-  auto compute_bindgroup =
-      CreateComputeBindGroups(*surface_texture_view,
-                              *resources->camera_uniform,
-                              *resources->tlas_storage,
-                              limits->minStorageBufferOffsetAlignment,
-                              *resources->blas_storage,
-                              *compute_bindgroup_layouts,
-                              *device);
+  auto compute_bindgroup = CreateComputeBindGroups(*surface_texture_view,
+                                                   *resources->camera_uniform,
+                                                   *resources->tlas_storage,
+                                                   resources->inst_offset,
+                                                   *resources->blas_storage,
+                                                   resources->idx_offset,
+                                                   resources->vert_offset,
+                                                   *compute_bindgroup_layouts,
+                                                   *device);
   if (!compute_bindgroup) return std::unexpected(compute_bindgroup.error());
   auto compute_pipeline =
       CreateComputePipeline(*compute_bindgroup_layouts, *device);

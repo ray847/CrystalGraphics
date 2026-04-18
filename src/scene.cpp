@@ -3,9 +3,10 @@
 #include <cgltf.h>
 
 #include <filesystem>
+#include <iostream>
 
+#include "CrystalGraphics/public.h"
 #include "CrystalGraphics/vertex.h"
-#include "glm/trigonometric.hpp"
 
 namespace crystal::graphics {
 
@@ -84,6 +85,7 @@ std::expected<Scene, Error> LoadScene(std::filesystem::path file) {
 
       /* Indices */
       cgltf_accessor* indexAccessor = primitive.indices;
+      size32_t primitive_index_offset = indices.size();
       if (indexAccessor) {
         total_indices_for_mesh += indexAccessor->count;
         for (cgltf_size k = 0; k < indexAccessor->count; ++k) {
@@ -96,7 +98,7 @@ std::expected<Scene, Error> LoadScene(std::filesystem::path file) {
       primitives[i].push_back(
           Primitive{ .vertex_offset = primitive_vertex_offset,
                      .vertex_count = primitive_vertex_count,
-                     .index_offset = current_index_offset,
+                     .index_offset = primitive_index_offset,
                      .index_count = static_cast<size32_t>(
                          primitive.indices ? primitive.indices->count : 0) });
     }

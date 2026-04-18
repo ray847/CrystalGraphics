@@ -49,6 +49,7 @@ class Scene {
   Scene(const std::filesystem::path& filepath) : filepath_(filepath) {
   }
   friend std::expected<Scene, Error> LoadScene(std::filesystem::path file);
+  friend class SceneData;
   friend class BVH;
   friend class TLAS;
   friend class BLAS;

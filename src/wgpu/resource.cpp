@@ -61,13 +61,18 @@ std::expected<Resources, Error> CreateResources(
   auto tlas_storage = CreateBVHStorage(min_offset_alignment + 4, device);
   if (!tlas_storage) return std::unexpected(tlas_storage.error());
   /* Blas Storage */
-  auto blas_storage = CreateBVHStorage(4, device);
+  auto blas_storage = CreateBVHStorage(min_offset_alignment * 2 + 4, device);
   if (!blas_storage) return std::unexpected(blas_storage.error());
-  return Resources{ .surface_texture = std::move(surface_texture),
-                    .surface_sampler = std::move(surface_sampler),
-                    .camera_uniform = std::move(camera_uniform),
-                    .tlas_storage = std::move(*tlas_storage),
-                    .blas_storage = std::move(*blas_storage) };
+  return Resources{
+    .surface_texture = std::move(surface_texture),
+    .surface_sampler = std::move(surface_sampler),
+    .camera_uniform = std::move(camera_uniform),
+    .tlas_storage = std::move(*tlas_storage),
+    .inst_offset = min_offset_alignment,
+    .blas_storage = std::move(*blas_storage),
+    .idx_offset = min_offset_alignment,
+    .vert_offset = min_offset_alignment * 2,
+  };
 }
 
 std::expected<::wgpu::TextureView, Error> CreateSurfaceTextureView(
@@ -104,11 +109,10 @@ std::expected<void, Error> WriteCameraUniform(const Camera& camera,
   return {};
 }
 
-std::expected<bool, Error> AssertBVHStorageSize(
-    const BVH& bvh,
-    Resources& resources,
-    std::size_t min_offset_alignment,
-    ::wgpu::Device& device) {
+std::expected<bool, Error> AssertStorageSize(const SceneData& scene_data,
+                                             Resources& resources,
+                                             std::size_t min_offset_alignment,
+                                             ::wgpu::Device& device) {
   auto assert_storage = [&device](
                             ::wgpu::raii::Buffer& storage,
                             std::size_t size) -> std::expected<bool, Error> {
@@ -125,33 +129,58 @@ std::expected<bool, Error> AssertBVHStorageSize(
     }
     return false;
   };
-  auto assert_blas_res = assert_storage(
-      resources.blas_storage, bvh.BLAS().Nodes().size() * sizeof(BLASNode));
-  if (!assert_blas_res) return std::unexpected(assert_blas_res.error());
+
+  const auto& bvh = scene_data.bvh_;
+  const auto& vertices = scene_data.vertices_;
+
+  /* TLAS Nodes & Instances */
   std::size_t tlas_nodes_size = bvh.TLAS().Nodes().size() * sizeof(TLASNode);
   std::size_t tlas_inst_size = bvh.TLAS().Instances().size() * sizeof(Instance);
   std::size_t tlas_inst_offset =
       std::max((tlas_nodes_size + min_offset_alignment - 1)
                    & ~(min_offset_alignment - 1),
-               resources.tlas_inst_offset);
-  std::size_t tlas_size = tlas_inst_offset + tlas_inst_size;
-  auto assert_tlas_res = assert_storage(resources.tlas_storage, tlas_size);
+               resources.inst_offset);
+  std::size_t buffer_size = tlas_inst_offset + tlas_inst_size;
+  auto assert_tlas_res = assert_storage(resources.tlas_storage, buffer_size);
   if (!assert_tlas_res) return std::unexpected(assert_tlas_res.error());
-  bool tlas_offset_change = tlas_inst_offset != resources.tlas_inst_offset;
-  resources.tlas_inst_offset = tlas_inst_offset;
-  return *assert_blas_res || *assert_tlas_res || tlas_offset_change;
+  bool inst_offset_change = tlas_inst_offset != resources.inst_offset;
+  resources.inst_offset = tlas_inst_offset;
+
+  /* BLAS Nodes & Indices & Vertices */
+  std::size_t blas_nodes_size = bvh.BLAS().Nodes().size() * sizeof(BLASNode);
+  std::size_t indices_size = bvh.BLAS().Indices().size() * sizeof(Index);
+  std::size_t vertices_size = vertices.size() * sizeof(Vertex);
+  std::size_t idx_offset = std::max((blas_nodes_size + min_offset_alignment - 1)
+                                        & ~(min_offset_alignment - 1),
+                                    resources.idx_offset);
+  std::size_t vert_offset =
+      std::max((idx_offset + indices_size + min_offset_alignment - 1)
+                   & ~(min_offset_alignment - 1),
+               resources.vert_offset);
+  auto assert_blas_res =
+      assert_storage(resources.blas_storage, vert_offset + vertices_size);
+  bool idx_offset_change = idx_offset != resources.idx_offset;
+  resources.idx_offset = idx_offset;
+  bool vert_offset_change = vert_offset != resources.vert_offset;
+  resources.vert_offset = vert_offset;
+  if (!assert_blas_res) return std::unexpected(assert_blas_res.error());
+  return *assert_blas_res || *assert_tlas_res || inst_offset_change
+      || idx_offset_change || vert_offset_change;
 }
 
-std::expected<bool, Error> WriteBVHStorage(const BVH& bvh,
-                                           Resources& resources,
-                                           std::size_t min_offset_alignment,
-                                           ::wgpu::Queue& queue,
-                                           ::wgpu::Device& device) {
+std::expected<bool, Error> WriteScene(const SceneData& scene_data,
+                                      Resources& resources,
+                                      std::size_t min_offset_alignment,
+                                      ::wgpu::Queue& queue,
+                                      ::wgpu::Device& device) {
   auto assert_size_res =
-      AssertBVHStorageSize(bvh, resources, min_offset_alignment, device);
+      AssertStorageSize(scene_data, resources, min_offset_alignment, device);
   if (!assert_size_res) return std::unexpected(assert_size_res.error());
+
+  const auto vertices = scene_data.vertices_;
+  const auto& bvh = scene_data.bvh_;
   /* Write buffer. */
-  /* TLAS */
+  /* TLAS Nodes */
   std::size_t tlas_nodes_size = bvh.TLAS().Nodes().size() * sizeof(TLASNode);
   std::size_t tlas_instances_size =
       bvh.TLAS().Instances().size() * sizeof(Instance);
@@ -161,7 +190,7 @@ std::expected<bool, Error> WriteBVHStorage(const BVH& bvh,
                     tlas_nodes_size);
   /* Instances */
   queue.writeBuffer(*resources.tlas_storage,
-                    resources.tlas_inst_offset,
+                    resources.inst_offset,
                     static_cast<const void*>(bvh.TLAS().Instances().data()),
                     tlas_instances_size);
   /* BLAS Nodes */
@@ -169,6 +198,16 @@ std::expected<bool, Error> WriteBVHStorage(const BVH& bvh,
                     0,
                     static_cast<const void*>(bvh.BLAS().Nodes().data()),
                     bvh.BLAS().Nodes().size() * sizeof(BLASNode));
+  /* Indices */
+  queue.writeBuffer(*resources.blas_storage,
+                    resources.idx_offset,
+                    static_cast<const void*>(bvh.BLAS().Indices().data()),
+                    bvh.BLAS().Indices().size() * sizeof(Index));
+  /* Vertices */
+  queue.writeBuffer(*resources.blas_storage,
+                    resources.vert_offset,
+                    static_cast<const void*>(vertices.data()),
+                    vertices.size() * sizeof(Vertex));
   if (auto e = global::error_stack.Pop()) return std::unexpected(*e);
   return *assert_size_res;
 }

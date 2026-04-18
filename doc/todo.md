@@ -5,7 +5,7 @@
     * ~~Möller–Trumbore intersection algorithm~~
   * ~~Camera~~
 
-2. Scene Integration & BVH
+2. ~~Scene Integration & BVH~~
   * Scene Loading
   * Scene Processing
     1. Extract array of meshes and their bounding boxes.

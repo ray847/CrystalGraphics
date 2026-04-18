@@ -19,7 +19,7 @@ struct ComputeBindGroupLayouts {
    * Compute BindGroup Layout.
    *
    * 0. Target Texture
-   * 1. Camera, BVH
+   * 1. Camera
    * 2. VBO, BVH
    */
   std::array<::wgpu::BindGroupLayout, 3> layouts;
@@ -115,9 +115,11 @@ std::expected<ComputeBindGroups, Error> CreateComputeBindGroups(
     /* Group 1 */
     ::wgpu::Buffer& camera_uniform,
     /* Group 2 */
-    ::wgpu::Buffer& tlas_storage,
+    ::wgpu::Buffer& tlas_inst_storage,
     std::size_t insts_offset,
-    ::wgpu::Buffer& blas_storage,
+    ::wgpu::Buffer& blas_idx_vert_storage,
+    std::size_t idx_offset,
+    std::size_t vert_offset,
     ComputeBindGroupLayouts& layouts,
     ::wgpu::Device& device);
 
@@ -125,7 +127,9 @@ std::expected<void, Error> UpdateComputeBindGroup2(
     ComputeBindGroups& bindgroups,
     ::wgpu::Buffer& tlas_storage,
     std::size_t insts_offset,
-    ::wgpu::Buffer& blas_storage,
+    ::wgpu::Buffer& blas_idx_vert_storage,
+    std::size_t idx_offset,
+    std::size_t vert_offset,
     ComputeBindGroupLayouts& layouts,
     ::wgpu::Device& device);
 

@@ -106,6 +106,9 @@ class TLAS {
       node.lb = glm::min(node.lb, bounded_meshes[i].aabb.lb_);
       node.ub = glm::max(node.ub, bounded_meshes[i].aabb.ub_);
     }
+    glm::vec3 padding = glm::vec3(0.001f, 0.001f, 0.001f);
+    node.lb -= padding;
+    node.ub += padding;
     size32_t count = r - l;
     if (count <= 1) {
       node.instance_idx = bounded_meshes[l].prim_idx;

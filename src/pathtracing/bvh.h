@@ -4,10 +4,8 @@
 #include <CrystalSpatial/spatial.h>
 
 #include <filesystem>
-#include <format>
 #include <glm/ext/matrix_float4x4.hpp>
 #include <glm/vec3.hpp>
-#include <iostream>
 #include <memory>
 #include <unordered_map>
 

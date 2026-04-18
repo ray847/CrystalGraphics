@@ -4,6 +4,8 @@
 @group(2) @binding(0) var<storage, read> tlas: array<TLASNode>;
 @group(2) @binding(1) var<storage, read> instances: array<Instance>;
 @group(2) @binding(2) var<storage, read> blas: array<BLASNode>;
+@group(2) @binding(3) var<storage, read> indices: array<Index>;
+@group(2) @binding(4) var<storage, read> vertices: array<Vertex>;
 
 /* Type */
 struct Camera {
@@ -32,10 +34,15 @@ struct BLASNode {
     ub: vec3f,
     triangle_count: u32,
 };
+alias Index = vec3i;
+struct Vertex {
+    position: vec3f,
+    normal: vec3f,
+};
 
 /* Constant */
 const kPi: f32 = 3.1415926535;
-const kEpsilon: f32 = 1e-6;
+const kEpsilon: f32 = 1e-12;
 
 /* Main */
 @compute @workgroup_size(16, 16)
@@ -72,27 +79,28 @@ fn CameraRay(coord: vec2f) -> Ray {
 }
 fn RayColor(ray: Ray) -> vec3f {
     let hit_info = RayHit(ray);
-    let brightness: f32 = clamp(hit_info.val / 500.0, 0.0, 1.0);
-    if hit_info.hit_blas {
-        return vec3f(brightness, 0, 0);
+    let brightness: f32 = clamp(1 - 1 / hit_info.val, 0.0, 1.0);
+    if hit_info.hit {
+        let depth_val = 1.0 / (1.0 + hit_info.val);
+        return vec3f(depth_val, depth_val, depth_val);
     } else {
-        return vec3f(0, brightness, 0);
+        return vec3f(0, 0, 0);
     }
 }
 struct RayHitInfo {
     val: f32,
-    hit_blas: bool,
+    hit: bool,
 };
 fn RayHit(ray: Ray) -> RayHitInfo {
     return RayTraverseTLAS(ray);
 }
+
 fn get_safe_inv_dir(dir: vec3f) -> vec3f {
-    var inv_dir = 1.0 / dir;
-    // Prevent NaN/Inf poisoning by capping divisions by zero
-    if abs(dir.x) < 1e-6 { inv_dir.x = 1e30 * sign(inv_dir.x); }
-    if abs(dir.y) < 1e-6 { inv_dir.y = 1e30 * sign(inv_dir.y); }
-    if abs(dir.z) < 1e-6 { inv_dir.z = 1e30 * sign(inv_dir.z); }
-    return inv_dir;
+    // If any component is exactly 0.0, replace it with a microscopic 
+    // epsilon so division results in Infinity without causing NaN.
+    let is_zero = dir == vec3f(0.0);
+    let safe_dir = select(dir, vec3f(1e-7), is_zero);
+    return 1.0 / safe_dir;
 }
 
 fn RayIntersectAABB(ray: Ray, lb: vec3f, ub: vec3f) -> bool {
@@ -109,55 +117,55 @@ fn RayIntersectAABB(ray: Ray, lb: vec3f, ub: vec3f) -> bool {
 
     return t_far >= t_near && t_far > 0.0;
 }
+
 fn RayTraverseTLAS(ray: Ray) -> RayHitInfo {
     var stack: array<u32, 32>;
     var stack_top: i32 = 0;
     stack[0] = 0u;
-    var curr: u32 = 0u;
-    var nodes_visited: f32 = 0.0;
-    var hit_blas: bool = false;
+
+    var hit_info = RayHitInfo(1e6, false);
 
     while stack_top >= 0 {
         let node_idx = stack[stack_top];
         stack_top--;
 
         let node = tlas[node_idx];
+        let lb = node.lb;
+        let ub = node.ub;
 
-        if RayIntersectAABB(ray, node.lb, node.ub) {
-            nodes_visited += 1.0;
-
-            if node.child != 0 {
-                // INTERIOR TLAS Node
-                let lchild = node.child;
-                let rchild = lchild + 1u;
-
-                stack_top++;
-                stack[stack_top] = lchild;
-                stack_top++;
-                stack[stack_top] = rchild;
+        if RayIntersectAABB(ray, lb, ub) {
+            if node.child != 0u {
+                stack_top++; stack[stack_top] = node.child;
+                stack_top++; stack[stack_top] = node.child + 1u;
             } else {
-                hit_blas = true;
-                //return RayHitInfo(nodes_visited, hit_blas);
-                // LEAF TLAS Node!
-                // Instantly dive into the BLAS and add its heatmap score to the total.
                 let instance = instances[node.inst_idx];
+
+                // Transform to local space. DO NOT NORMALIZE ray.dir!
                 let local_ray = Ray(
                     (instance.inv_trans * vec4f(ray.pos, 1.0f)).xyz,
                     (instance.inv_trans * vec4f(ray.dir, 0.0f)).xyz,
+                    // Note: Update inv_dir inside your RayIntersectAABB 
+                    // dynamically, or recalculate it here for the local_ray
                 );
-                nodes_visited += RayTraverseBLAS(local_ray, instance.blas_root_idx);
+
+                // Pass current closest hit to BLAS to allow early-out logic later
+                let blas_t = RayTraverseBLAS(local_ray, instance.blas_root_idx, hit_info.val);
+
+                if blas_t < hit_info.val {
+                    hit_info.val = blas_t;
+                    hit_info.hit = true;
+                }
             }
         }
     }
-    return RayHitInfo(nodes_visited, hit_blas);
+    return hit_info;
 }
-fn RayTraverseBLAS(ray: Ray, root_idx: u32) -> f32 {
+fn RayTraverseBLAS(ray: Ray, root_idx: u32, max_t: f32) -> f32 {
     var stack: array<u32, 32>;
     var stack_top: i32 = 0;
-
-    // Start at the specific BLAS root given to us by the TLAS
     stack[0] = root_idx;
-    var nodes_visited: f32 = 0.0;
+
+    var closest_t: f32 = max_t;
 
     while stack_top >= 0 {
         let node_idx = stack[stack_top];
@@ -166,24 +174,61 @@ fn RayTraverseBLAS(ray: Ray, root_idx: u32) -> f32 {
         let node = blas[node_idx];
 
         if RayIntersectAABB(ray, node.lb, node.ub) {
-            nodes_visited += 1.0;
 
             if node.triangle_count == 0u {
-                // It's an INTERIOR BLAS Node
-                let lchild = node.child;
-                let rchild = lchild + 1u;
-
-                stack_top++;
-                stack[stack_top] = lchild;
-                stack_top++;
-                stack[stack_top] = rchild;
+                // INTERIOR NODE
+                stack_top++; stack[stack_top] = node.child;
+                stack_top++; stack[stack_top] = node.child + 1u;
             } else {
-                // It's a LEAF BLAS Node! 
-                // We've hit the actual geometry bounding box.
-                // For the heatmap, let's add the triangle count so denser geometry glows brighter!
-                nodes_visited += f32(node.triangle_count);
+                let index_offset = node.child;
+                for (var i = 0u; i < node.triangle_count; i++) {
+                    let index = indices[index_offset + i];
+                    let v0 = vertices[index[0]].position;
+                    let v1 = vertices[index[1]].position;
+                    let v2 = vertices[index[2]].position;
+
+                    let t = RayIntersectTriangle(ray, v0, v1, v2);
+
+                    if t > 0.0 && t < closest_t {
+                        closest_t = t;
+                    }
+                }
             }
         }
     }
-    return nodes_visited;
+    return closest_t;
+}
+fn RayIntersectTriangle(ray: Ray, v0: vec3f, v1: vec3f, v2: vec3f) -> f32 {
+    let edge1 = v1 - v0;
+    let edge2 = v2 - v0;
+    let h = cross(ray.dir, edge2);
+    let a = dot(edge1, h);
+
+    // If a is near zero, the ray is parallel to the triangle
+    if a > -kEpsilon && a < kEpsilon {
+        return -1.0;
+    }
+
+    let f = 1.0 / a;
+    let s = ray.pos - v0;
+    let u = f * dot(s, h);
+
+    if u < 0.0 || u > 1.0 {
+        return -1.0;
+    }
+
+    let q = cross(s, edge1);
+    let v = f * dot(ray.dir, q);
+
+    if v < 0.0 || u + v > 1.0 {
+        return -1.0;
+    }
+
+    let t = f * dot(edge2, q);
+
+    if t > kEpsilon {
+        return t; // Hit!
+    }
+
+    return -1.0; // Line intersects, but behind the ray origin
 }
