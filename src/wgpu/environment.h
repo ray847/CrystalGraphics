@@ -1,19 +1,19 @@
 #ifndef CRYSTALGRAPHICS_SRC_WGPU_ENVIRONMENT_H_
 #define CRYSTALGRAPHICS_SRC_WGPU_ENVIRONMENT_H_
 
-#include <expected>
-#include <tuple>
-
 #include <glfw3webgpu.h>
 #include <webgpu/webgpu.h>
+
+#include <expected>
+#include <tuple>
 #include <webgpu/webgpu-raii.hpp>
 #include <webgpu/webgpu.hpp>
 
-#include "CrystalGraphics/error.h"
 #include "CrystalGraphics/camera.h"
-#include "src/pathtracing/scene_data.h"
+#include "CrystalGraphics/error.h"
 #include "compute.h"
 #include "resource.h"
+#include "src/pathtracing/scene_data.h"
 
 namespace crystal::graphics::wgpu {
 
@@ -38,6 +38,7 @@ class Env {
 
  private:
   ::wgpu::raii::Instance instance_;
+  ::wgpu::Limits limits_;
   ::wgpu::raii::Device device_;
   ::wgpu::raii::Surface surface_;
   /* Resources */
@@ -52,16 +53,18 @@ class Env {
   ::wgpu::raii::Queue queue_;
   /* Constructor */
   Env(::wgpu::Instance&& instance,
-           ::wgpu::Device&& device,
-           ::wgpu::Surface&& surface,
-           Resources&& resources,
-           ComputeBindGroupLayouts&& compute_bindgroup_layouts,
-           ComputeBindGroups&& compute_bindgroups,
-           ::wgpu::ComputePipeline&& compute_pipeline,
-           ::wgpu::BindGroup&& render_bindgroup,
-           ::wgpu::RenderPipeline&& render_pipeline,
-           ::wgpu::Queue&& queue) :
+      ::wgpu::Limits&& limits,
+      ::wgpu::Device&& device,
+      ::wgpu::Surface&& surface,
+      Resources&& resources,
+      ComputeBindGroupLayouts&& compute_bindgroup_layouts,
+      ComputeBindGroups&& compute_bindgroups,
+      ::wgpu::ComputePipeline&& compute_pipeline,
+      ::wgpu::BindGroup&& render_bindgroup,
+      ::wgpu::RenderPipeline&& render_pipeline,
+      ::wgpu::Queue&& queue) :
       instance_(std::move(instance)),
+      limits_(std::move(limits)),
       device_(std::move(device)),
       surface_(std::move(surface)),
       resources_(std::move(resources)),

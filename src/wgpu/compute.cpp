@@ -14,6 +14,7 @@ namespace crystal::graphics::wgpu {
 
 std::expected<::wgpu::BindGroup, Error> CreateComputeBindGroup2(
     ::wgpu::Buffer& tlas_storage,
+    std::size_t tlas_inst_offset,
     ::wgpu::Buffer& blas_storage,
     ComputeBindGroupLayouts& layouts,
     ::wgpu::Device& device);
@@ -69,8 +70,8 @@ std::expected<ComputeBindGroupLayouts, Error> CreateComputeBindGroupLayouts(
       }());
   if (auto e = global::error_stack.Pop()) return std::unexpected(*e);
   /* Group 2 */
-  std::array<::wgpu::BindGroupLayoutEntry, 2> group2entries{
-    /* TLAS */
+  std::array<::wgpu::BindGroupLayoutEntry, 3> group2entries{
+    /* TLAS Nodes */
     [&] -> ::wgpu::BindGroupLayoutEntry {
       ::wgpu::BindGroupLayoutEntry tlas_entry{ ::wgpu::Default };
       tlas_entry.binding = 0;
@@ -78,10 +79,18 @@ std::expected<ComputeBindGroupLayouts, Error> CreateComputeBindGroupLayouts(
       tlas_entry.buffer.type = ::wgpu::BufferBindingType::ReadOnlyStorage;
       return tlas_entry;
     }(),
+    /* TLAS Instances */
+    [&] -> ::wgpu::BindGroupLayoutEntry {
+      ::wgpu::BindGroupLayoutEntry tlas_entry{ ::wgpu::Default };
+      tlas_entry.binding = 1;
+      tlas_entry.visibility = ::wgpu::ShaderStage::Compute;
+      tlas_entry.buffer.type = ::wgpu::BufferBindingType::ReadOnlyStorage;
+      return tlas_entry;
+    }(),
     /* BLAS */
     [&] -> ::wgpu::BindGroupLayoutEntry {
       ::wgpu::BindGroupLayoutEntry blas_entry{ ::wgpu::Default };
-      blas_entry.binding = 1;
+      blas_entry.binding = 2;
       blas_entry.visibility = ::wgpu::ShaderStage::Compute;
       blas_entry.buffer.type = ::wgpu::BufferBindingType::ReadOnlyStorage;
       return blas_entry;
@@ -108,6 +117,7 @@ std::expected<ComputeBindGroups, Error> CreateComputeBindGroups(
     ::wgpu::Buffer& camera_uniform,
     /* Group 2 */
     ::wgpu::Buffer& tlas_storage,
+    std::size_t insts_offset,
     ::wgpu::Buffer& blas_storage,
     ComputeBindGroupLayouts& layouts,
     ::wgpu::Device& device) {
@@ -155,8 +165,8 @@ std::expected<ComputeBindGroups, Error> CreateComputeBindGroups(
       return desc;
     }())
   };
-  auto group2 =
-      CreateComputeBindGroup2(tlas_storage, blas_storage, layouts, device);
+  auto group2 = CreateComputeBindGroup2(
+      tlas_storage, insts_offset, blas_storage, layouts, device);
   if (!group2) return std::unexpected(group2.error());
   return ComputeBindGroups{ group0, group1, *group2 };
 }
@@ -164,11 +174,12 @@ std::expected<ComputeBindGroups, Error> CreateComputeBindGroups(
 std::expected<void, Error> UpdateComputeBindGroup2(
     ComputeBindGroups& bindgroups,
     ::wgpu::Buffer& tlas_storage,
+    std::size_t insts_offset,
     ::wgpu::Buffer& blas_storage,
     ComputeBindGroupLayouts& layouts,
     ::wgpu::Device& device) {
-  auto group2 =
-      CreateComputeBindGroup2(tlas_storage, blas_storage, layouts, device);
+  auto group2 = CreateComputeBindGroup2(
+      tlas_storage, insts_offset, blas_storage, layouts, device);
   if (!group2) return std::unexpected(group2.error());
   bindgroups[2] = std::move(*group2);
   return {};
@@ -226,13 +237,21 @@ std::expected<void, Error> EncodeComputePass(::wgpu::CommandEncoder& encoder,
   };
   if (auto e = global::error_stack.Pop()) return std::unexpected(*e);
   compute_pass_encoder->setPipeline(pipeline);
-  for (const auto& [idx, bindgroup] : std::views::enumerate(*bindgroups)) {
-    compute_pass_encoder->setBindGroup(
-        /* group index */ idx,
-        /* bindgroup */ bindgroup,
-        /* dynamic offset count */ 0,
-        /* dynamic offsets */ nullptr);
-  }
+  compute_pass_encoder->setBindGroup(
+      /* group index */ 0,
+      /* bindgroup */ bindgroups[0],
+      /* dynamic offset count */ 0,
+      /* dynamic offsets */ nullptr);
+  compute_pass_encoder->setBindGroup(
+      /* group index */ 1,
+      /* bindgroup */ bindgroups[1],
+      /* dynamic offset count */ 0,
+      /* dynamic offsets */ nullptr);
+  compute_pass_encoder->setBindGroup(
+      /* group index */ 2,
+      /* bindgroup */ bindgroups[2],
+      /* dynamic offset count */ 0,
+      /* dynamic offsets */ nullptr);
   uint32_t width = global::resolution_width;
   uint32_t height = global::resolution_height;
   uint32_t workgroup_size_x = 16;
@@ -250,20 +269,32 @@ std::expected<void, Error> EncodeComputePass(::wgpu::CommandEncoder& encoder,
 
 std::expected<::wgpu::BindGroup, Error> CreateComputeBindGroup2(
     ::wgpu::Buffer& tlas_storage,
+    std::size_t tlas_inst_offset,
     ::wgpu::Buffer& blas_storage,
     ComputeBindGroupLayouts& layouts,
     ::wgpu::Device& device) {
-  std::array<::wgpu::BindGroupEntry, 2> group2entries{
+  std::array<::wgpu::BindGroupEntry, 3> group2entries{
+    /* TLAS Nodes */
     [&] -> ::wgpu::BindGroupEntry {
       ::wgpu::BindGroupEntry bvh{ ::wgpu::Default };
       bvh.binding = 0;
       bvh.buffer = tlas_storage;
-      bvh.size = tlas_storage.getSize();
+      bvh.size = tlas_inst_offset;
       return bvh;
     }(),
+    /* Instances */
     [&] -> ::wgpu::BindGroupEntry {
       ::wgpu::BindGroupEntry bvh{ ::wgpu::Default };
       bvh.binding = 1;
+      bvh.buffer = tlas_storage;
+      bvh.offset = tlas_inst_offset;
+      bvh.size = tlas_storage.getSize() - tlas_inst_offset;
+      return bvh;
+    }(),
+    /* BLAS Nodes */
+    [&] -> ::wgpu::BindGroupEntry {
+      ::wgpu::BindGroupEntry bvh{ ::wgpu::Default };
+      bvh.binding = 2;
       bvh.buffer = blas_storage;
       bvh.size = blas_storage.getSize();
       return bvh;

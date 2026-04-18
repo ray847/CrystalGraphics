@@ -20,12 +20,16 @@ std::expected<void, Error> Env::View(const SceneData& scene_data,
   auto write_camera_res = WriteCameraUniform(camera, resources_, *queue_);
   if (!write_camera_res) return std::unexpected(write_camera_res.error());
   /* BVH */
-  auto write_bvh_res =
-      WriteBVHStorage(scene_data.bvh_, resources_, *queue_, *device_);
+  auto write_bvh_res = WriteBVHStorage(scene_data.bvh_,
+                                       resources_,
+                                       limits_.minStorageBufferOffsetAlignment,
+                                       *queue_,
+                                       *device_);
   if (!write_bvh_res) return std::unexpected(write_bvh_res.error());
   if (*write_bvh_res)
     if (auto update_res = UpdateComputeBindGroup2(compute_bindgroups_,
                                                   *resources_.tlas_storage,
+                                                  resources_.tlas_inst_offset,
                                                   *resources_.blas_storage,
                                                   compute_bindgroup_layouts_,
                                                   *device_);

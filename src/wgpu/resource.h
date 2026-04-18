@@ -20,11 +20,14 @@ struct Resources {
   ::wgpu::raii::Sampler surface_sampler;
   ::wgpu::raii::Buffer camera_uniform;
   ::wgpu::raii::Buffer tlas_storage;
+  std::size_t tlas_inst_offset;
   ::wgpu::raii::Buffer blas_storage;
 };
 
 std::expected<Resources, Error> CreateResources(
-    const ::wgpu::SurfaceConfiguration& surface_config, ::wgpu::Device& device);
+    const ::wgpu::SurfaceConfiguration& surface_config,
+    std::size_t min_offset_alignment,
+    ::wgpu::Device& device);
 
 std::expected<::wgpu::TextureView, Error> CreateSurfaceTextureView(
     ::wgpu::Texture& surface_texture);
@@ -35,6 +38,7 @@ std::expected<void, Error> WriteCameraUniform(const Camera& camera,
 
 std::expected<bool, Error> WriteBVHStorage(const BVH& bvh,
                                            Resources& resources,
+                                           std::size_t min_offset_alignment,
                                            ::wgpu::Queue& queue,
                                            ::wgpu::Device& device);
 

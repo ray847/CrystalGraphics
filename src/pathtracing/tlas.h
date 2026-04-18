@@ -2,33 +2,33 @@
 #define CRYSTALGRAPHICS_SRC_PATHTRACING_TLAS_H_
 
 #include <glm/ext/vector_float3.hpp>
+#include <iostream>
 #include <limits>
 #include <vector>
 
 #include "CrystalGraphics/public.h"
 #include "CrystalGraphics/scene.h"
 #include "aabb.h"
+#include "glm/matrix.hpp"
+#include "instance.h"
 
 namespace crystal::graphics {
 
 using Primitive = Scene::Primitive;
 
-struct alignas(32) TLASNode {
-  glm::vec3 lb = {
+struct alignas(16) TLASNode {
+  alignas(16) glm::vec3 lb = {
     std::numeric_limits<float>::max(),
     std::numeric_limits<float>::max(),
     std::numeric_limits<float>::max(),
   };
-  union {
-    size32_t child = 0;
-    size32_t blas_root;
+  size32_t child = 0;
+  alignas(16) glm::vec3 ub = {
+    std::numeric_limits<float>::lowest(),
+    std::numeric_limits<float>::lowest(),
+    std::numeric_limits<float>::lowest(),
   };
-  glm::vec3 ub = {
-    std::numeric_limits<float>::min(),
-    std::numeric_limits<float>::min(),
-    std::numeric_limits<float>::min(),
-  };
-  size32_t primitive_idx = 0;
+  size32_t instance_idx = 0;
 };
 
 class TLAS {
@@ -54,9 +54,16 @@ class TLAS {
       }
       return AABB{ lb, ub };
     };
-    for (auto [i, prim] :
-         std::views::enumerate(scene.space_.ObjView<Primitive>())) {
+    for (auto [i, prim_blas_root] : std::views::enumerate(
+             std::views::zip(scene.space_.ObjView<Primitive>(), blas_roots))) {
+      auto prim = std::get<0>(prim_blas_root);
+      size32_t blas_root = std::get<1>(prim_blas_root);
       auto world_trans = prim.SubSpaceIdx().AbsTrans();
+      instances_.push_back(Instance{
+          .inv_trans = glm::inverse(world_trans.mat),
+          .blas_root_idx = blas_root,
+          .material_idx = static_cast<size32_t>(i),
+      });
       BoundedPrimitive res = {
         .aabb = trans_aabb(AABB{ *prim, scene.vertices_ }, world_trans.mat),
         .prim_idx = static_cast<size32_t>(i),
@@ -73,6 +80,9 @@ class TLAS {
   const auto& Nodes() const {
     return nodes_;
   }
+  const auto& Instances() const {
+    return instances_;
+  }
 
  private:
   struct BoundedPrimitive {
@@ -82,7 +92,9 @@ class TLAS {
     size32_t blas_root;
   };
 
+  /* Variables */
   std::vector<TLASNode> nodes_;
+  std::vector<Instance> instances_;
 
   void Build(size32_t node_idx,
              size32_t l,
@@ -96,8 +108,8 @@ class TLAS {
     }
     size32_t count = r - l;
     if (count <= 1) {
-      node.blas_root = bounded_meshes[l].blas_root;
-      node.primitive_idx = bounded_meshes[l].prim_idx;
+      node.instance_idx = bounded_meshes[l].prim_idx;
+      node.child = 0;
       return;
     }
     AABB center_bounds{};
@@ -115,9 +127,9 @@ class TLAS {
                      [=](const BoundedPrimitive& x, const BoundedPrimitive& y) {
                        return x.center[split_axis] < y.center[split_axis];
                      });
-    node.child = nodes_.size();
-    node.primitive_idx = -1;
-    size32_t lchild = node.child;
+    nodes_[node_idx].child = nodes_.size();
+    nodes_[node_idx].instance_idx = 0;
+    size32_t lchild = nodes_[node_idx].child;
     nodes_.emplace_back();
     nodes_.emplace_back();
     /* Recursion */

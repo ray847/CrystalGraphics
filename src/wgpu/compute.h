@@ -116,6 +116,7 @@ std::expected<ComputeBindGroups, Error> CreateComputeBindGroups(
     ::wgpu::Buffer& camera_uniform,
     /* Group 2 */
     ::wgpu::Buffer& tlas_storage,
+    std::size_t insts_offset,
     ::wgpu::Buffer& blas_storage,
     ComputeBindGroupLayouts& layouts,
     ::wgpu::Device& device);
@@ -123,6 +124,7 @@ std::expected<ComputeBindGroups, Error> CreateComputeBindGroups(
 std::expected<void, Error> UpdateComputeBindGroup2(
     ComputeBindGroups& bindgroups,
     ::wgpu::Buffer& tlas_storage,
+    std::size_t insts_offset,
     ::wgpu::Buffer& blas_storage,
     ComputeBindGroupLayouts& layouts,
     ::wgpu::Device& device);

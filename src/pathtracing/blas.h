@@ -12,14 +12,14 @@
 
 namespace crystal::graphics {
 
-struct alignas(32) BLASNode {
-  glm::vec3 lb = {
+struct alignas(16) BLASNode {
+  alignas(16) glm::vec3 lb = {
     std::numeric_limits<float>::max(),
     std::numeric_limits<float>::max(),
     std::numeric_limits<float>::max(),
   };
   uint32_t child = 0;
-  glm::vec3 ub = {
+  alignas(16) glm::vec3 ub = {
     std::numeric_limits<float>::min(),
     std::numeric_limits<float>::min(),
     std::numeric_limits<float>::min(),
@@ -31,8 +31,8 @@ class BLAS {
  public:
   BLAS(const Scene& scene) {
     roots_.reserve(scene.space_.ObjView<Primitive>().size());
-    nodes_.reserve(scene.vertices_.size() * 2);
-    triangles_.reserve(scene.vertices_.size() / 3 * 2);
+    nodes_.reserve(scene.indicies_.size() / 3 * 2);
+    triangles_.reserve(scene.indicies_.size() / 3);
     for (const auto& primitive : scene.space_.ObjView<Primitive>())
       BuildPrimitive(*primitive, scene);
   }
@@ -69,9 +69,12 @@ class BLAS {
     std::vector<TriangleInfo> triangle_info =
         std::views::iota(0u, triangle_count)
         | std::views::transform([&](size32_t triangle_idx) -> TriangleInfo {
-            size32_t i0 = scene.indicies_[triangle_idx * 3 + 0];
-            size32_t i1 = scene.indicies_[triangle_idx * 3 + 1];
-            size32_t i2 = scene.indicies_[triangle_idx * 3 + 2];
+            size32_t i0 =
+                scene.indicies_[primitive.index_offset + triangle_idx * 3 + 0];
+            size32_t i1 =
+                scene.indicies_[primitive.index_offset + triangle_idx * 3 + 1];
+            size32_t i2 =
+                scene.indicies_[primitive.index_offset + triangle_idx * 3 + 2];
             const glm::vec3& v0 = scene.vertices_[i0].position;
             const glm::vec3& v1 = scene.vertices_[i1].position;
             const glm::vec3& v2 = scene.vertices_[i2].position;
@@ -152,9 +155,9 @@ class BLAS {
                      });
 
     /* Child Nodes */
-    node.child = nodes_.size();
-    node.triangle_count = 0;
-    size32_t left_child_idx = node.child;
+    nodes_[node_idx].child = nodes_.size();
+    nodes_[node_idx].triangle_count = 0;
+    size32_t left_child_idx = nodes_[node_idx].child;
     nodes_.emplace_back();
     nodes_.emplace_back();
 

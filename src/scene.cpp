@@ -145,9 +145,9 @@ std::expected<Scene, Error> LoadScene(std::filesystem::path file) {
   cgltf_free(data);
 
   /* Coordinate system translate. */
-  space.RootSubSpace().Trans().IncrRotate(glm::degrees(-90.0f), { 1, 0, 0 });
+  // space.RootSubSpace().Trans().IncrRotate(glm::degrees(-90.0f), { 1, 0, 0 });
 
   return res;
 }
 
-} // namespace crystal::graphics
+}  // namespace crystal::graphics

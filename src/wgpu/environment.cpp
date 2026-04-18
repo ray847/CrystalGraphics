@@ -8,6 +8,7 @@
 #include "device.h"
 #include "global.h"
 #include "instance.h"
+#include "limits.h"
 #include "queue.h"
 #include "render.h"
 #include "surface.h"
@@ -24,6 +25,9 @@ std::expected<Env, Error> CreateEnv(GLFWwindow* window) {
   /* Adapater */
   auto adapter = CreateAdapter(*instance, *surface);
   if (!adapter) return std::unexpected(adapter.error());
+  /* Limits */
+  auto limits = CreateLimits(*adapter);
+  if (!limits) return std::unexpected(limits.error());
   /* Device */
   auto device = CreateDevice(*adapter);
   if (!device) return std::unexpected(device.error());
@@ -31,7 +35,8 @@ std::expected<Env, Error> CreateEnv(GLFWwindow* window) {
   auto surface_config = ConfigSurface(*surface, *adapter, *device);
   if (!surface_config) return std::unexpected(surface_config.error());
   /* Resources */
-  auto resources = CreateResources(*surface_config, *device);
+  auto resources = CreateResources(
+      *surface_config, limits->minStorageBufferOffsetAlignment, *device);
   if (!resources) return std::unexpected(resources.error());
   auto surface_texture_view_res =
       CreateSurfaceTextureView(*resources->surface_texture);
@@ -43,12 +48,14 @@ std::expected<Env, Error> CreateEnv(GLFWwindow* window) {
   auto compute_bindgroup_layouts = CreateComputeBindGroupLayouts(*device);
   if (!compute_bindgroup_layouts)
     return std::unexpected(compute_bindgroup_layouts.error());
-  auto compute_bindgroup = CreateComputeBindGroups(*surface_texture_view,
-                                                   *resources->camera_uniform,
-                                                   *resources->tlas_storage,
-                                                   *resources->blas_storage,
-                                                   *compute_bindgroup_layouts,
-                                                   *device);
+  auto compute_bindgroup =
+      CreateComputeBindGroups(*surface_texture_view,
+                              *resources->camera_uniform,
+                              *resources->tlas_storage,
+                              limits->minStorageBufferOffsetAlignment,
+                              *resources->blas_storage,
+                              *compute_bindgroup_layouts,
+                              *device);
   if (!compute_bindgroup) return std::unexpected(compute_bindgroup.error());
   auto compute_pipeline =
       CreateComputePipeline(*compute_bindgroup_layouts, *device);
@@ -71,6 +78,7 @@ std::expected<Env, Error> CreateEnv(GLFWwindow* window) {
   auto queue = CreateQueue(*device);
   if (!queue) return std::unexpected(queue.error());
   return Env{ std::move(*instance),
+              std::move(*limits),
               std::move(*device),
               std::move(*surface),
               std::move(*resources),

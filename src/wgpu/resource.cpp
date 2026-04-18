@@ -15,6 +15,7 @@ std::expected<::wgpu::Buffer, Error> CreateBVHStorage(std::size_t size,
 
 std::expected<Resources, Error> CreateResources(
     const ::wgpu::SurfaceConfiguration& surface_config,
+    std::size_t min_offset_alignment,
     ::wgpu::Device& device) {
   /* Surface Texture */
   ::wgpu::Texture surface_texture =
@@ -57,7 +58,7 @@ std::expected<Resources, Error> CreateResources(
       }());
   if (auto e = global::error_stack.Pop()) return std::unexpected(*e);
   /* Tlas Storage */
-  auto tlas_storage = CreateBVHStorage(4, device);
+  auto tlas_storage = CreateBVHStorage(min_offset_alignment + 4, device);
   if (!tlas_storage) return std::unexpected(tlas_storage.error());
   /* Blas Storage */
   auto blas_storage = CreateBVHStorage(4, device);
@@ -103,9 +104,11 @@ std::expected<void, Error> WriteCameraUniform(const Camera& camera,
   return {};
 }
 
-std::expected<bool, Error> AssertBVHStorageSize(const BVH& bvh,
-                                                Resources& resources,
-                                                ::wgpu::Device& device) {
+std::expected<bool, Error> AssertBVHStorageSize(
+    const BVH& bvh,
+    Resources& resources,
+    std::size_t min_offset_alignment,
+    ::wgpu::Device& device) {
   auto assert_storage = [&device](
                             ::wgpu::raii::Buffer& storage,
                             std::size_t size) -> std::expected<bool, Error> {
@@ -125,23 +128,43 @@ std::expected<bool, Error> AssertBVHStorageSize(const BVH& bvh,
   auto assert_blas_res = assert_storage(
       resources.blas_storage, bvh.BLAS().Nodes().size() * sizeof(BLASNode));
   if (!assert_blas_res) return std::unexpected(assert_blas_res.error());
-  auto assert_tlas_res = assert_storage(
-      resources.tlas_storage, bvh.TLAS().Nodes().size() * sizeof(TLASNode));
+  std::size_t tlas_nodes_size = bvh.TLAS().Nodes().size() * sizeof(TLASNode);
+  std::size_t tlas_inst_size = bvh.TLAS().Instances().size() * sizeof(Instance);
+  std::size_t tlas_inst_offset =
+      std::max((tlas_nodes_size + min_offset_alignment - 1)
+                   & ~(min_offset_alignment - 1),
+               resources.tlas_inst_offset);
+  std::size_t tlas_size = tlas_inst_offset + tlas_inst_size;
+  auto assert_tlas_res = assert_storage(resources.tlas_storage, tlas_size);
   if (!assert_tlas_res) return std::unexpected(assert_tlas_res.error());
-  return *assert_blas_res || *assert_tlas_res;
+  bool tlas_offset_change = tlas_inst_offset != resources.tlas_inst_offset;
+  resources.tlas_inst_offset = tlas_inst_offset;
+  return *assert_blas_res || *assert_tlas_res || tlas_offset_change;
 }
 
 std::expected<bool, Error> WriteBVHStorage(const BVH& bvh,
                                            Resources& resources,
+                                           std::size_t min_offset_alignment,
                                            ::wgpu::Queue& queue,
                                            ::wgpu::Device& device) {
-  auto assert_size_res = AssertBVHStorageSize(bvh, resources, device);
+  auto assert_size_res =
+      AssertBVHStorageSize(bvh, resources, min_offset_alignment, device);
   if (!assert_size_res) return std::unexpected(assert_size_res.error());
   /* Write buffer. */
+  /* TLAS */
+  std::size_t tlas_nodes_size = bvh.TLAS().Nodes().size() * sizeof(TLASNode);
+  std::size_t tlas_instances_size =
+      bvh.TLAS().Instances().size() * sizeof(Instance);
   queue.writeBuffer(*resources.tlas_storage,
                     0,
                     static_cast<const void*>(bvh.TLAS().Nodes().data()),
-                    bvh.TLAS().Nodes().size() * sizeof(TLASNode));
+                    tlas_nodes_size);
+  /* Instances */
+  queue.writeBuffer(*resources.tlas_storage,
+                    resources.tlas_inst_offset,
+                    static_cast<const void*>(bvh.TLAS().Instances().data()),
+                    tlas_instances_size);
+  /* BLAS Nodes */
   queue.writeBuffer(*resources.blas_storage,
                     0,
                     static_cast<const void*>(bvh.BLAS().Nodes().data()),

@@ -4,8 +4,10 @@
 #include <CrystalSpatial/spatial.h>
 
 #include <filesystem>
+#include <format>
 #include <glm/ext/matrix_float4x4.hpp>
 #include <glm/vec3.hpp>
+#include <iostream>
 #include <memory>
 #include <unordered_map>
 
@@ -22,9 +24,10 @@ class BVH {
   /* Constructor */
   BVH(const Scene& scene) :
       blas_([&] -> class BLAS& {
-        if (!cached_blas_.contains(scene.FilePath()))
+        if (!cached_blas_.contains(scene.FilePath())) {
           cached_blas_.insert(
               { scene.FilePath(), std::make_unique<class BLAS>(scene) });
+        }
         return *cached_blas_.at(scene.FilePath());
       }()),
       tlas_(scene, blas_.Roots()) {

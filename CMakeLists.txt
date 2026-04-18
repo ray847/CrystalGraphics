@@ -27,6 +27,7 @@ target_sources(CrystalGraphics
     src/scene.cpp
     src/api.cpp
     src/view.cpp
+    src/cpu_view.cpp
     src/error_stack.h
     src/cgltf_implementation.cpp
     src/glfw/global.h
@@ -40,6 +41,7 @@ target_sources(CrystalGraphics
     src/wgpu/instance.cpp
     src/wgpu/surface.cpp
     src/wgpu/adapter.cpp
+    src/wgpu/limits.cpp
     src/wgpu/device.cpp
     src/wgpu/resource.cpp
     src/wgpu/compute.cpp

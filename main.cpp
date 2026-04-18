@@ -5,6 +5,8 @@
 #include <cstdlib>
 #include <iostream>
 
+constexpr bool kCPU = false;
+
 int main() {
   auto init_res = crystal::graphics::EnvInit();
   if (!init_res) {
@@ -20,28 +22,37 @@ int main() {
   uint64_t counter = 0;
   auto st = std::chrono::high_resolution_clock::now();
   while (std::chrono::high_resolution_clock::now() - st
-         < std::chrono::seconds(30)) {
+         < std::chrono::seconds(10)) {
     float angle = (float)std::chrono::duration_cast<std::chrono::milliseconds>(
                       std::chrono::high_resolution_clock::now() - st)
                       .count()
                 / 1000 / 2;
-    float dis = 1.0f;
+    float dis = 20.0f;
     crystal::graphics::Camera camera{
-      .position = { dis * std::cos(angle), dis * std::sin(angle), 0 },
-      .direction = { -std::cos(angle), -std::sin(angle), 0 },
+      .position = { dis * std::cos(angle), 0.5, dis * std::sin(angle) },
+      .direction = { -std::cos(angle), 0, -std::sin(angle) },
       .viewport = { 1.960, 1.080 }
     };
-    auto view_res = crystal::graphics::View(*scene, camera);
-    if (!view_res) [[unlikely]] {
-      std::cerr << view_res.error() << std::endl;
-      return EXIT_FAILURE;
+    if constexpr (kCPU) {
+      auto view_res = crystal::graphics::CPUView(*scene, camera);
+      if (!view_res) [[unlikely]] {
+        std::cerr << view_res.error() << std::endl;
+        return EXIT_FAILURE;
+      }
+      return EXIT_SUCCESS;
+    } else {
+      auto view_res = crystal::graphics::View(*scene, camera);
+      if (!view_res) [[unlikely]] {
+        std::cerr << view_res.error() << std::endl;
+        return EXIT_FAILURE;
+      }
+      auto sync_res = crystal::graphics::EnvSync();
+      if (!sync_res) [[unlikely]] {
+        std::cerr << sync_res.error() << std::endl;
+        return EXIT_FAILURE;
+      }
+      counter++;
     }
-    auto sync_res = crystal::graphics::EnvSync();
-    if (!sync_res) [[unlikely]] {
-      std::cerr << sync_res.error() << std::endl;
-      return EXIT_FAILURE;
-    }
-    counter++;
   }
   std::cout << "\rLoop: " << counter << std::endl;
   auto term_res = crystal::graphics::EnvTerm();
