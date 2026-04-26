@@ -13,9 +13,10 @@ int main() {
     std::cerr << init_res.error() << std::endl;
     return EXIT_FAILURE;
   }
-  // auto scene = crystal::graphics::LoadScene(
-  //     "asset/ABeautifulGame/glTF/ABeautifulGame.gltf");
-  auto scene = crystal::graphics::LoadScene("asset/Sponza/glTF/Sponza.gltf");
+  auto scene = crystal::graphics::LoadScene(
+      "asset/ABeautifulGame/glTF/ABeautifulGame.gltf");
+  // auto scene =
+  //     crystal::graphics::LoadScene("asset/FlightHelmet/glTF/FlightHelmet.gltf");
   if (!scene) {
     std::cout << scene.error() << std::endl;
     return EXIT_FAILURE;

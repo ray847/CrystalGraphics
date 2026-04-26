@@ -15,8 +15,6 @@
 
 namespace crystal::graphics {
 
-using Primitive = Scene::Primitive;
-
 class BVH {
  public:
   /* Constructor */

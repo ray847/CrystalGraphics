@@ -13,6 +13,8 @@
       AVL Tree + 8-Wide BVH
 
 3. Path Tracing
+  * Upload Material Data
+  * 
 
 4. Spectral
 

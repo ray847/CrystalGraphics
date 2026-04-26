@@ -5,6 +5,7 @@
 
 #include "CrystalGraphics/scene.h"
 #include "bvh.h"
+#include "src/scene_impl.h"
 
 namespace crystal::graphics {
 
@@ -15,7 +16,7 @@ class SceneData {
   BVH bvh_;
 
   /* Constructor */
-  SceneData(const Scene& scene) : vertices_(scene.vertices_), bvh_(scene) {
+  SceneData(const Scene& scene) : vertices_(scene.impl_->vertices_), bvh_(scene) {
   }
 };
 

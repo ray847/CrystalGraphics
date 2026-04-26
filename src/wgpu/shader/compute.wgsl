@@ -1,234 +1,369 @@
-/* Data Flow */
-@group(0) @binding(0) var target_texture: texture_storage_2d<rgba8unorm, write>;
-@group(1) @binding(0) var<uniform> camera: Camera;
-@group(2) @binding(0) var<storage, read> tlas: array<TLASNode>;
-@group(2) @binding(1) var<storage, read> instances: array<Instance>;
-@group(2) @binding(2) var<storage, read> blas: array<BLASNode>;
-@group(2) @binding(3) var<storage, read> indices: array<Index>;
-@group(2) @binding(4) var<storage, read> vertices: array<Vertex>;
-
-/* Type */
 struct Camera {
     pos: vec3f,
     dir: vec3f,
-    viewport: vec2f,
-};
-struct Ray {
-    pos: vec3f,
-    dir: vec3f,
-};
-struct TLASNode {
-    lb: vec3f,
-    child: u32,
-    ub: vec3f,
-    inst_idx: u32,
-};
-struct Instance {
-    inv_trans: mat4x4f,
-    blas_root_idx: u32,
-    material_idx: u32,
-};
-struct BLASNode {
-    lb: vec3f,
-    child: u32,
-    ub: vec3f,
-    triangle_count: u32,
-};
-alias Index = vec3i;
-struct Vertex {
-    position: vec3f,
-    normal: vec3f,
-};
+    viewport: vec2f
+}
 
-/* Constant */
-const kPi: f32 = 3.1415926535;
-const kEpsilon: f32 = 1e-12;
+@group(0) @binding(0)
+var target_texture: texture_storage_2d<rgba8unorm, write>;
 
-/* Main */
+@group(1) @binding(0)
+var<uniform> camera: Camera;
+
 @compute @workgroup_size(16, 16)
 fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
     let dims = textureDimensions(target_texture);
     let pixel = global_id.xy;
-    let coord: vec2f = (vec2f(pixel) / vec2f(dims)) * 2.0f - vec2f(1, 1);
+    let coord: vec2f = (vec2f(pixel) / vec2f(dims)) * 2f - vec2f(1, 1);
     if pixel.x >= dims.x || pixel.y >= dims.y {
         return;
     }
-    let camera_ray = CameraRay(coord);
-    let color: vec3f = RayColor(camera_ray);
-    textureStore(
-        target_texture,
-        pixel,
-        vec4f(
-            color,
-            1.0f
-        )
-    );
+    package_pathtrace_math__1seed_rng(pixel.x + pixel.y * dims.x);
+    let camera_ray = camera_ray(coord);
+    let color: vec3f = package_pathtrace_render_render(camera_ray);
+    textureStore(target_texture, pixel, vec4f(color, 1f));
 }
 
-/* Functions */
-fn CameraRay(coord: vec2f) -> Ray {
-    let dx: vec3f = normalize(
-        cross(
-            vec3f(0, 1, 0),
-            //vec3f(0, 0, 1),
-            camera.dir
-        )
-    ) * camera.viewport.x;
+fn camera_ray(coord: vec2f) -> package_pathtrace_math_Ray {
+    let dx: vec3f = normalize(cross(vec3f(0, 1, 0), camera.dir)) * camera.viewport.x;
     let dy: vec3f = normalize(cross(dx, camera.dir)) * camera.viewport.y;
-    return Ray(camera.pos, normalize(camera.dir + coord.x * dx + coord.y * dy));
-}
-fn RayColor(ray: Ray) -> vec3f {
-    let hit_info = RayHit(ray);
-    let brightness: f32 = clamp(1 - 1 / hit_info.val, 0.0, 1.0);
-    if hit_info.hit {
-        let depth_val = 1.0 / (1.0 + hit_info.val);
-        return vec3f(depth_val, depth_val, depth_val);
-    } else {
-        return vec3f(0, 0, 0);
-    }
-}
-struct RayHitInfo {
-    val: f32,
-    hit: bool,
-};
-fn RayHit(ray: Ray) -> RayHitInfo {
-    return RayTraverseTLAS(ray);
+    return package_pathtrace_math_Ray(camera.pos, normalize(camera.dir + coord.x * dx + coord.y * dy));
 }
 
-fn get_safe_inv_dir(dir: vec3f) -> vec3f {
-    // If any component is exactly 0.0, replace it with a microscopic 
-    // epsilon so division results in Infinity without causing NaN.
+struct package_pathtrace_math_Ray {
+    pos: vec3f,
+    dir: vec3f
+}
+
+const package_pathtrace_math_EPSILON: f32 = 1e-12;
+
+const package_pathtrace_math__1RAY_OFFSET: f32 = 0.0001;
+
+const package_pathtrace_math_MAX: f32 = 1000000.0;
+
+fn package_pathtrace_math__1dir_inv(dir: vec3f) -> vec3f {
     let is_zero = dir == vec3f(0.0);
     let safe_dir = select(dir, vec3f(1e-7), is_zero);
     return 1.0 / safe_dir;
 }
 
-fn RayIntersectAABB(ray: Ray, lb: vec3f, ub: vec3f) -> bool {
-    let inv_dir = get_safe_inv_dir(ray.dir);
-
+fn package_pathtrace_math__2ray_intersect_aabb(ray: package_pathtrace_math_Ray, lb: vec3f, ub: vec3f) -> bool {
+    let inv_dir = package_pathtrace_math__1dir_inv(ray.dir);
     let t0 = (lb - ray.pos) * inv_dir;
     let t1 = (ub - ray.pos) * inv_dir;
-
     let tmin = min(t0, t1);
     let tmax = max(t0, t1);
-
     let t_near = max(max(tmin.x, tmin.y), tmin.z);
     let t_far = min(min(tmax.x, tmax.y), tmax.z);
-
     return t_far >= t_near && t_far > 0.0;
 }
 
-fn RayTraverseTLAS(ray: Ray) -> RayHitInfo {
+var<private> package_pathtrace_math__1rng_state: u32;
+
+fn package_pathtrace_math__1seed_rng(seed: u32) {
+    package_pathtrace_math__1rng_state = seed;
+    package_pathtrace_math__1step_rng();
+}
+
+fn package_pathtrace_math__1step_rng() {
+    package_pathtrace_math__1rng_state = package_pathtrace_math__1rng_state * 747796405u + 2891336453u;
+    var word: u32 = ((package_pathtrace_math__1rng_state >> ((package_pathtrace_math__1rng_state >> 28u) + 4u)) ^ package_pathtrace_math__1rng_state) * 277803737u;
+    package_pathtrace_math__1rng_state = (word >> 22u) ^ word;
+}
+
+fn package_pathtrace_math__1rand_float() -> f32 {
+    package_pathtrace_math__1step_rng();
+    return f32(package_pathtrace_math__1rng_state) / 4294967296.0;
+}
+
+fn package_pathtrace_render_render(ray: package_pathtrace_math_Ray) -> package_pathtrace_luminance_Luminance {
+    return package_pathtrace_luminance_illuminate(package_pathtrace_trace_trace(ray));
+}
+
+alias package_pathtrace_luminance_Luminance = vec3f;
+
+fn package_pathtrace_luminance_illuminate(radiance: package_pathtrace_radiance_Radiance) -> package_pathtrace_luminance_Luminance {
+    return radiance;
+}
+
+alias package_pathtrace_radiance_Radiance = vec3f;
+
+fn package_pathtrace_radiance_radiate(surface_pos: package_pathtrace_structural_SurfacePos, lod: package_pathtrace_lod_LOD) -> package_pathtrace_radiance_Radiance {
+    return package_pathtrace_radiance_Radiance();
+}
+
+const package_pathtrace_trace__2MAX_TRACE_DEPTH: u32 = 8;
+
+struct package_pathtrace_trace_Stack {
+    ray: package_pathtrace_math_Ray,
+    lod: package_pathtrace_lod_LOD,
+    hit_info: package_pathtrace_structural_HitInfo,
+    sampled_rays: package_pathtrace_sample_Sample,
+    iter: u32,
+    in_recurse: bool,
+    surface_radiance: package_pathtrace_radiance_Radiance
+}
+
+fn package_pathtrace_trace_trace(ray: package_pathtrace_math_Ray) -> package_pathtrace_radiance_Radiance {
+    var ret: package_pathtrace_radiance_Radiance;
+    var stk = array<package_pathtrace_trace_Stack, package_pathtrace_trace__2MAX_TRACE_DEPTH>();
+    var top: i32 = 0;
+    stk[top].ray = ray;
+    stk[top].lod = package_pathtrace_lod_LOD(0);
+    while (top >= 0) {
+        if !stk[top].in_recurse {
+            stk[top].hit_info = package_pathtrace_bvh__1ray_hit(stk[top].ray);
+            if !stk[top].hit_info.travel_info.hit {
+                ret = package_pathtrace_trace__1environment_radiance(stk[top].ray.dir);
+                stk[top] = package_pathtrace_trace_Stack();
+                top--;
+                continue;
+            }
+            if package_pathtrace_lod__1reach_end(stk[top].lod) || u32(top) == package_pathtrace_trace__2MAX_TRACE_DEPTH - 1 {
+                ret = package_pathtrace_radiance_radiate(stk[top].hit_info.surface_pos, stk[top].lod);
+                stk[top] = package_pathtrace_trace_Stack();
+                top--;
+                continue;
+            }
+            else {
+                stk[top].sampled_rays = package_pathtrace_sample_sample(stk[top].ray.dir, stk[top].hit_info.surface_pos, stk[top].lod);
+                stk[top].iter = 0;
+                stk[top].in_recurse = true;
+            }
+        }
+        else {
+            stk[top].sampled_rays.ray_radiance[stk[top].iter - 1] = ret;
+        }
+        if stk[top].iter < stk[top].sampled_rays.count {
+            stk[top + 1].ray = stk[top].sampled_rays.rays[stk[top].iter];
+            stk[top + 1].lod = package_pathtrace_lod_decr(stk[top].lod);
+            stk[top].iter += 1;
+            top++;
+            continue;
+        }
+        else {
+            if stk[top].sampled_rays.count == 0 {
+                ret = package_pathtrace_radiance_Radiance(0.0);
+                stk[top] = package_pathtrace_trace_Stack();
+                top--;
+                continue;
+            }
+            ret = package_pathtrace_radiance_Radiance(0.0);
+            for (var i: u32; i < stk[top].sampled_rays.count; i++) {
+                ret += stk[top].sampled_rays.ray_radiance[i];
+            }
+            ret /= f32(stk[top].sampled_rays.count);
+            stk[top] = package_pathtrace_trace_Stack();
+            top--;
+            continue;
+        }
+    }
+    return ret;
+}
+
+fn package_pathtrace_trace__1environment_radiance(dir: vec3f) -> package_pathtrace_radiance_Radiance {
+    let t = 0.5 * (dir.y + 1.0);
+    return mix(package_pathtrace_radiance_Radiance(0.7, 0.8, 1.0), package_pathtrace_radiance_Radiance(0.05, 0.05, 0.06), 1.0 - t);
+}
+
+struct package_pathtrace_lod_LOD {
+    depth: i32
+}
+
+fn package_pathtrace_lod__1reach_end(lod: package_pathtrace_lod_LOD) -> bool {
+    return lod.depth > 4;
+}
+
+fn package_pathtrace_lod_decr(lod: package_pathtrace_lod_LOD) -> package_pathtrace_lod_LOD {
+    let decr_lod = package_pathtrace_lod_LOD(lod.depth + 1);
+    return decr_lod;
+}
+
+alias package_pathtrace_structural_Pos = vec3f;
+
+alias package_pathtrace_structural_Vec = vec3f;
+
+struct package_pathtrace_structural_TravelInfo {
+    hit: bool,
+    dist: f32
+}
+
+struct package_pathtrace_structural_SurfacePos {
+    pos: package_pathtrace_structural_Pos,
+    norm: package_pathtrace_structural_Vec
+}
+
+struct package_pathtrace_structural_HitInfo {
+    travel_info: package_pathtrace_structural_TravelInfo,
+    surface_pos: package_pathtrace_structural_SurfacePos
+}
+
+const package_pathtrace_sample__2MAX_SAMPLE_COUNT: u32 = 1;
+
+struct package_pathtrace_sample_Sample {
+    count: u32,
+    rays: array<package_pathtrace_math_Ray, package_pathtrace_sample__2MAX_SAMPLE_COUNT>,
+    ray_radiance: array<package_pathtrace_radiance_Radiance, package_pathtrace_sample__2MAX_SAMPLE_COUNT>
+}
+
+fn package_pathtrace_sample_sample(in_dir: package_pathtrace_structural_Vec, surface_pos: package_pathtrace_structural_SurfacePos, lod: package_pathtrace_lod_LOD) -> package_pathtrace_sample_Sample {
+    var res: package_pathtrace_sample_Sample;
+    res.count = 1;
+    let rand_vec = normalize(package_pathtrace_structural_Vec(package_pathtrace_math__1rand_float(), package_pathtrace_math__1rand_float(), package_pathtrace_math__1rand_float()));
+    let same_hemisphere = dot(rand_vec, surface_pos.norm) > 0.0;
+    let out_dir = select(-rand_vec, rand_vec, same_hemisphere);
+    res.rays[0] = package_pathtrace_math_Ray(surface_pos.pos + out_dir * package_pathtrace_math__1RAY_OFFSET, out_dir);
+    return res;
+}
+
+struct package_pathtrace_bvh_TLASNode {
+    lb: vec3f,
+    child: u32,
+    ub: vec3f,
+    inst_idx: u32
+}
+
+struct package_pathtrace_bvh_Instance {
+    inv_trans: mat4x4f,
+    blas_root_idx: u32,
+    material_idx: u32
+}
+
+struct package_pathtrace_bvh_BLASNode {
+    lb: vec3f,
+    child: u32,
+    ub: vec3f,
+    triangle_count: u32
+}
+
+alias package_pathtrace_bvh_Index = vec3i;
+
+struct package_pathtrace_bvh_Vertex {
+    position: vec3f,
+    normal: vec3f
+}
+
+@group(2) @binding(0)
+var<storage, read> package_pathtrace_bvh_tlas: array<package_pathtrace_bvh_TLASNode>;
+
+@group(2) @binding(1)
+var<storage, read> package_pathtrace_bvh_instances: array<package_pathtrace_bvh_Instance>;
+
+@group(2) @binding(2)
+var<storage, read> package_pathtrace_bvh_blas: array<package_pathtrace_bvh_BLASNode>;
+
+@group(2) @binding(3)
+var<storage, read> package_pathtrace_bvh_indices: array<package_pathtrace_bvh_Index>;
+
+@group(2) @binding(4)
+var<storage, read> package_pathtrace_bvh_vertices: array<package_pathtrace_bvh_Vertex>;
+
+struct package_pathtrace_bvh_BlasHitInfo {
+    global_distance: f32,
+    local_normal: vec3f
+}
+
+fn package_pathtrace_bvh__1ray_hit(ray: package_pathtrace_math_Ray) -> package_pathtrace_structural_HitInfo {
+    return package_pathtrace_bvh__2ray_traverse_tlas(ray);
+}
+
+fn package_pathtrace_bvh__2ray_traverse_tlas(ray: package_pathtrace_math_Ray) -> package_pathtrace_structural_HitInfo {
     var stack: array<u32, 32>;
     var stack_top: i32 = 0;
     stack[0] = 0u;
-
-    var hit_info = RayHitInfo(1e6, false);
-
-    while stack_top >= 0 {
+    var dis: f32 = package_pathtrace_math_MAX;
+    var local_normal: vec3f;
+    var inv_trans: mat4x4f;
+    while (stack_top >= 0) {
         let node_idx = stack[stack_top];
         stack_top--;
-
-        let node = tlas[node_idx];
+        let node = package_pathtrace_bvh_tlas[node_idx];
         let lb = node.lb;
         let ub = node.ub;
-
-        if RayIntersectAABB(ray, lb, ub) {
+        if package_pathtrace_math__2ray_intersect_aabb(ray, lb, ub) {
             if node.child != 0u {
-                stack_top++; stack[stack_top] = node.child;
-                stack_top++; stack[stack_top] = node.child + 1u;
-            } else {
-                let instance = instances[node.inst_idx];
-
-                // Transform to local space. DO NOT NORMALIZE ray.dir!
-                let local_ray = Ray(
-                    (instance.inv_trans * vec4f(ray.pos, 1.0f)).xyz,
-                    (instance.inv_trans * vec4f(ray.dir, 0.0f)).xyz,
-                    // Note: Update inv_dir inside your RayIntersectAABB 
-                    // dynamically, or recalculate it here for the local_ray
-                );
-
-                // Pass current closest hit to BLAS to allow early-out logic later
-                let blas_t = RayTraverseBLAS(local_ray, instance.blas_root_idx, hit_info.val);
-
-                if blas_t < hit_info.val {
-                    hit_info.val = blas_t;
-                    hit_info.hit = true;
+                stack_top++;
+                stack[stack_top] = node.child;
+                stack_top++;
+                stack[stack_top] = node.child + 1u;
+            }
+            else {
+                let instance = package_pathtrace_bvh_instances[node.inst_idx];
+                let local_ray = package_pathtrace_math_Ray((instance.inv_trans * vec4f(ray.pos, 1f)).xyz, (instance.inv_trans * vec4f(ray.dir, 0f)).xyz);
+                let blas_hit_info = package_pathtrace_bvh__2ray_traverse_blas(local_ray, instance.blas_root_idx);
+                if blas_hit_info.global_distance < dis {
+                    dis = blas_hit_info.global_distance;
+                    local_normal = blas_hit_info.local_normal;
+                    inv_trans = instance.inv_trans;
                 }
             }
         }
     }
-    return hit_info;
+    if dis >= package_pathtrace_math_MAX {
+        return package_pathtrace_structural_HitInfo(package_pathtrace_structural_TravelInfo(false, package_pathtrace_math_MAX), package_pathtrace_structural_SurfacePos(vec3f(0.0), vec3f(0.0)));
+    }
+    return package_pathtrace_structural_HitInfo(package_pathtrace_structural_TravelInfo(true, dis), package_pathtrace_structural_SurfacePos(ray.pos + dis * ray.dir, normalize((transpose(inv_trans) * vec4f(local_normal, 0f)).xyz)));
 }
-fn RayTraverseBLAS(ray: Ray, root_idx: u32, max_t: f32) -> f32 {
+
+fn package_pathtrace_bvh__2ray_traverse_blas(ray: package_pathtrace_math_Ray, root_idx: u32) -> package_pathtrace_bvh_BlasHitInfo {
     var stack: array<u32, 32>;
     var stack_top: i32 = 0;
     stack[0] = root_idx;
-
-    var closest_t: f32 = max_t;
-
-    while stack_top >= 0 {
+    var closest_t: f32 = package_pathtrace_math_MAX;
+    var normal: vec3f;
+    while (stack_top >= 0) {
         let node_idx = stack[stack_top];
         stack_top--;
-
-        let node = blas[node_idx];
-
-        if RayIntersectAABB(ray, node.lb, node.ub) {
-
+        let node = package_pathtrace_bvh_blas[node_idx];
+        if package_pathtrace_math__2ray_intersect_aabb(ray, node.lb, node.ub) {
             if node.triangle_count == 0u {
-                // INTERIOR NODE
-                stack_top++; stack[stack_top] = node.child;
-                stack_top++; stack[stack_top] = node.child + 1u;
-            } else {
+                stack_top++;
+                stack[stack_top] = node.child;
+                stack_top++;
+                stack[stack_top] = node.child + 1u;
+            }
+            else {
                 let index_offset = node.child;
                 for (var i = 0u; i < node.triangle_count; i++) {
-                    let index = indices[index_offset + i];
-                    let v0 = vertices[index[0]].position;
-                    let v1 = vertices[index[1]].position;
-                    let v2 = vertices[index[2]].position;
-
-                    let t = RayIntersectTriangle(ray, v0, v1, v2);
-
+                    let index = package_pathtrace_bvh_indices[index_offset + i];
+                    let v0 = package_pathtrace_bvh_vertices[index[0]].position;
+                    let v1 = package_pathtrace_bvh_vertices[index[1]].position;
+                    let v2 = package_pathtrace_bvh_vertices[index[2]].position;
+                    let t = package_pathtrace_bvh__2ray_intersect_triangle(ray, v0, v1, v2);
                     if t > 0.0 && t < closest_t {
                         closest_t = t;
+                        normal = normalize(package_pathtrace_bvh_vertices[index[0]].normal + package_pathtrace_bvh_vertices[index[1]].normal + package_pathtrace_bvh_vertices[index[2]].normal);
                     }
                 }
             }
         }
     }
-    return closest_t;
+    return package_pathtrace_bvh_BlasHitInfo(closest_t, normal);
 }
-fn RayIntersectTriangle(ray: Ray, v0: vec3f, v1: vec3f, v2: vec3f) -> f32 {
+
+fn package_pathtrace_bvh__2ray_intersect_triangle(ray: package_pathtrace_math_Ray, v0: vec3f, v1: vec3f, v2: vec3f) -> f32 {
     let edge1 = v1 - v0;
     let edge2 = v2 - v0;
     let h = cross(ray.dir, edge2);
     let a = dot(edge1, h);
-
-    // If a is near zero, the ray is parallel to the triangle
-    if a > -kEpsilon && a < kEpsilon {
+    if a > -package_pathtrace_math_EPSILON && a < package_pathtrace_math_EPSILON {
         return -1.0;
     }
-
     let f = 1.0 / a;
     let s = ray.pos - v0;
     let u = f * dot(s, h);
-
     if u < 0.0 || u > 1.0 {
         return -1.0;
     }
-
     let q = cross(s, edge1);
     let v = f * dot(ray.dir, q);
-
     if v < 0.0 || u + v > 1.0 {
         return -1.0;
     }
-
     let t = f * dot(edge2, q);
-
-    if t > kEpsilon {
-        return t; // Hit!
+    if t > package_pathtrace_math_EPSILON {
+        return t;
     }
-
-    return -1.0; // Line intersects, but behind the ray origin
+    return -1.0;
 }
+

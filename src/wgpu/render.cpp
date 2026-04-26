@@ -1,19 +1,19 @@
-#include <array>
+#include "render.h"
 
+#include <array>
 #include <expected>
 #include <webgpu/webgpu.hpp>
 
 #include "global.h"
-#include "render.h"
 #include "webgpu/webgpu-raii.hpp"
 
 namespace crystal::graphics::wgpu {
 
 std::expected<::wgpu::BindGroupLayout, Error> CreateRenderBindGroupLayout(
     ::wgpu::Device& device) {
-  std::array<::wgpu::BindGroupLayoutEntry, 2> entries {
+  std::array<::wgpu::BindGroupLayoutEntry, 2> entries{
     [&] -> ::wgpu::BindGroupLayoutEntry {
-      ::wgpu::BindGroupLayoutEntry entry{::wgpu::Default};
+      ::wgpu::BindGroupLayoutEntry entry{ ::wgpu::Default };
       entry.binding = 0;
       entry.visibility = ::wgpu::ShaderStage::Fragment;
       entry.texture.sampleType = ::wgpu::TextureSampleType::Float;
@@ -22,66 +22,62 @@ std::expected<::wgpu::BindGroupLayout, Error> CreateRenderBindGroupLayout(
       return entry;
     }(),
     [&] -> ::wgpu::BindGroupLayoutEntry {
-      ::wgpu::BindGroupLayoutEntry entry{::wgpu::Default};
+      ::wgpu::BindGroupLayoutEntry entry{ ::wgpu::Default };
       entry.binding = 1;
       entry.visibility = ::wgpu::ShaderStage::Fragment;
       entry.sampler.type = ::wgpu::SamplerBindingType::Filtering;
       return entry;
     }(),
- };
- auto bindgroup_layout = device.createBindGroupLayout(
-  [&] -> ::wgpu::BindGroupLayoutDescriptor {
-    ::wgpu::BindGroupLayoutDescriptor desc{::wgpu::Default};
-    desc.entries = entries.data();
-    desc.entryCount = entries.size();
-    desc.label = ::wgpu::StringView{"Crystal Graphics Render BindGroup Layout"};
-    return desc;
-  }()
- );
- if (auto e = global::error_stack.Pop()) return std::unexpected(*e);
- return bindgroup_layout;
+  };
+  auto bindgroup_layout =
+      device.createBindGroupLayout([&] -> ::wgpu::BindGroupLayoutDescriptor {
+        ::wgpu::BindGroupLayoutDescriptor desc{ ::wgpu::Default };
+        desc.entries = entries.data();
+        desc.entryCount = entries.size();
+        desc.label =
+            ::wgpu::StringView{ "Crystal Graphics Render BindGroup Layout" };
+        return desc;
+      }());
+  if (auto e = global::error_stack.Pop()) return std::unexpected(*e);
+  return bindgroup_layout;
 }
 
 std::expected<::wgpu::BindGroup, Error> CreateRenderBindGroup(
-  ::wgpu::TextureView& surface_texture_view,
-  ::wgpu::Sampler& surface_texture_sampler,
-  ::wgpu::BindGroupLayout& layout,
-  ::wgpu::Device& device
-) {
-  std::array<::wgpu::BindGroupEntry, 2> entries {
+    ::wgpu::TextureView& surface_texture_view,
+    ::wgpu::Sampler& surface_texture_sampler,
+    ::wgpu::BindGroupLayout& layout,
+    ::wgpu::Device& device) {
+  std::array<::wgpu::BindGroupEntry, 2> entries{
     [&] -> ::wgpu::BindGroupEntry {
-      ::wgpu::BindGroupEntry entry{::wgpu::Default};
-      entry.binding = 0,
-      entry.textureView = surface_texture_view;
+      ::wgpu::BindGroupEntry entry{ ::wgpu::Default };
+      entry.binding = 0, entry.textureView = surface_texture_view;
       return entry;
     }(),
-    [&]-> ::wgpu::BindGroupEntry{
-      ::wgpu::BindGroupEntry entry{::wgpu::Default};
+    [&] -> ::wgpu::BindGroupEntry {
+      ::wgpu::BindGroupEntry entry{ ::wgpu::Default };
       entry.binding = 1;
       entry.sampler = surface_texture_sampler;
       return entry;
     }(),
   };
-  ::wgpu::BindGroup bindgroup {
-    device.createBindGroup([&] -> ::wgpu::BindGroupDescriptor {
-      ::wgpu::BindGroupDescriptor desc{ ::wgpu::Default };
-      desc.entries = entries.data();
-      desc.entryCount = entries.size();
-      desc.label = ::wgpu::StringView{ "Crystal Graphics Render BindGroup" };
-      desc.layout = layout;
-      desc.nextInChain = nullptr;
-      return desc;
-    }())
-  };
+  ::wgpu::BindGroup bindgroup{ device.createBindGroup(
+      [&] -> ::wgpu::BindGroupDescriptor {
+        ::wgpu::BindGroupDescriptor desc{ ::wgpu::Default };
+        desc.entries = entries.data();
+        desc.entryCount = entries.size();
+        desc.label = ::wgpu::StringView{ "Crystal Graphics Render BindGroup" };
+        desc.layout = layout;
+        desc.nextInChain = nullptr;
+        return desc;
+      }()) };
   if (auto e = global::error_stack.Pop()) return std::unexpected(*e);
   return bindgroup;
 }
 
 std::expected<::wgpu::RenderPipeline, Error> CreateRenderPipeline(
-  ::wgpu::BindGroupLayout& bindgroup_layout,
-  ::wgpu::SurfaceConfiguration& surface_config,
-  ::wgpu::Device& device
-) {
+    ::wgpu::BindGroupLayout& bindgroup_layout,
+    ::wgpu::SurfaceConfiguration& surface_config,
+    ::wgpu::Device& device) {
   /* Vertex Shader */
   ::wgpu::ShaderSourceWGSL vert_src_desc{ ::wgpu::Default };
   constexpr char vert_src[] = {
@@ -97,13 +93,13 @@ std::expected<::wgpu::RenderPipeline, Error> CreateRenderPipeline(
       device.createShaderModule(vert_shader_desc);
   if (auto e = global::error_stack.Pop()) return std::unexpected(*e);
   /* Fragment Shader */
-  ::wgpu::ShaderSourceWGSL frag_src_desc{::wgpu::Default};
+  ::wgpu::ShaderSourceWGSL frag_src_desc{ ::wgpu::Default };
   constexpr char frag_src[] = {
 #embed "shader/fragment.wgsl"
     , '\0'
   };
   frag_src_desc.code = ::wgpu::StringView(frag_src);
-  ::wgpu::ShaderModuleDescriptor frag_shader_desc{::wgpu::Default};
+  ::wgpu::ShaderModuleDescriptor frag_shader_desc{ ::wgpu::Default };
   frag_shader_desc.nextInChain = &frag_src_desc.chain;
   frag_shader_desc.label =
       ::wgpu::StringView{ "Crystal Graphics Fragment Shader" };
@@ -113,23 +109,23 @@ std::expected<::wgpu::RenderPipeline, Error> CreateRenderPipeline(
   /* Pipeline Layout */
   ::wgpu::raii::PipelineLayout pipeline_layout{ device.createPipelineLayout(
       [&] -> ::wgpu::PipelineLayoutDescriptor {
-        ::wgpu::PipelineLayoutDescriptor desc{::wgpu::Default};
+        ::wgpu::PipelineLayoutDescriptor desc{ ::wgpu::Default };
         desc.bindGroupLayoutCount = 1;
         desc.bindGroupLayouts =
             reinterpret_cast<WGPUBindGroupLayout*>(&bindgroup_layout);
         return desc;
       }()) };
   /* Pipeline */
-  ::wgpu::RenderPipelineDescriptor render_pipeline_desc{::wgpu::Default};
+  ::wgpu::RenderPipelineDescriptor render_pipeline_desc{ ::wgpu::Default };
   render_pipeline_desc.layout = *pipeline_layout;
   render_pipeline_desc.vertex.module = *vert_shader_module;
   render_pipeline_desc.vertex.entryPoint = ::wgpu::StringView{ "vert_main" };
-  ::wgpu::FragmentState fragment_state{::wgpu::Default};
+  ::wgpu::FragmentState fragment_state{ ::wgpu::Default };
   fragment_state.module = *frag_shader_module;
   fragment_state.entryPoint = ::wgpu::StringView{ "frag_main" };
   ::wgpu::ColorTargetState color_target_state = ::wgpu::Default;
   color_target_state.format = surface_config.format;
-  ::wgpu::BlendState blend_state{::wgpu::Default};
+  ::wgpu::BlendState blend_state{ ::wgpu::Default };
   color_target_state.blend = &blend_state;
   fragment_state.targetCount = 1;
   fragment_state.targets = &color_target_state;
@@ -168,4 +164,4 @@ std::expected<void, Error> EncodeRenderPass(::wgpu::CommandEncoder& encoder,
   if (auto e = global::error_stack.Pop()) return std::unexpected(*e);
   return {};
 }
-}
+}  // namespace crystal::graphics::wgpu

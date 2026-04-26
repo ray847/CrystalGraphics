@@ -3,20 +3,29 @@
 #include <cgltf.h>
 
 #include <filesystem>
-#include <iostream>
 
 #include "CrystalGraphics/public.h"
-#include "CrystalGraphics/vertex.h"
+#include "scene_impl.h"
 
 namespace crystal::graphics {
 
-std::expected<Scene, Error> LoadScene(std::filesystem::path file) {
-  using Primitive = Scene::Primitive;
+Scene::Scene(const std::filesystem::path& filepath) :
+    filepath_(filepath),
+    impl_(std::make_unique<Impl>()) {
+}
 
+Scene::~Scene() = default;
+
+Scene::Scene(Scene&& other) noexcept :
+    filepath_(std::move(other.filepath_)),
+    impl_(std::move(other.impl_)) {
+}
+
+std::expected<Scene, Error> LoadScene(std::filesystem::path file) {
   Scene res{ file };
-  VertexContainer& verticies = res.vertices_;
-  std::vector<uint32_t>& indices = res.indicies_;
-  spatial::Space<Scene::SpaceDef>& space = res.space_;
+  VertexContainer& vertices = res.impl_->vertices_;
+  std::vector<uint32_t>& indices = res.impl_->indices_;
+  spatial::Space<Scene::Impl::SpaceDef>& space = res.impl_->space_;
 
   /* Open the file. */
   cgltf_options opts{};
@@ -39,7 +48,7 @@ std::expected<Scene, Error> LoadScene(std::filesystem::path file) {
   for (cgltf_size i = 0; i < data->meshes_count; ++i) {
     const cgltf_mesh& mesh = data->meshes[i];
     /* Record data starting point. */
-    uint32_t current_vertex_offset = verticies.size();
+    uint32_t current_vertex_offset = vertices.size();
     uint32_t current_index_offset = indices.size();
     uint32_t total_vertices_for_mesh = 0;
     uint32_t total_indices_for_mesh = 0;
@@ -56,8 +65,8 @@ std::expected<Scene, Error> LoadScene(std::filesystem::path file) {
           break;
         }
       }
-      uint32_t primitive_vertex_offset = verticies.size();
-      verticies.resize(verticies.size() + primitive_vertex_count);
+      uint32_t primitive_vertex_offset = vertices.size();
+      vertices.resize(vertices.size() + primitive_vertex_count);
       total_vertices_for_mesh += primitive_vertex_count;
 
       /* Vertex Data */
@@ -69,7 +78,7 @@ std::expected<Scene, Error> LoadScene(std::filesystem::path file) {
             cgltf_accessor_read_float(
                 accessor,
                 v,
-                &verticies[primitive_vertex_offset + v].position.x,
+                &vertices[primitive_vertex_offset + v].position.x,
                 3);
           }
         } else if (attribute.type == cgltf_attribute_type_normal) {
@@ -77,7 +86,7 @@ std::expected<Scene, Error> LoadScene(std::filesystem::path file) {
             cgltf_accessor_read_float(
                 accessor,
                 v,
-                &verticies[primitive_vertex_offset + v].normal.x,
+                &vertices[primitive_vertex_offset + v].normal.x,
                 3);
           }
         }
@@ -111,7 +120,7 @@ std::expected<Scene, Error> LoadScene(std::filesystem::path file) {
                           const cgltf_node* node,
                           decltype(root_ss) subspace) -> void {
     /* Extract transformation. */
-    Scene::Trans trans;
+    Scene::Impl::Trans trans;
     if (node->has_scale)
       trans.scale = { node->scale[0], node->scale[1], node->scale[2] };
     if (node->has_rotation)

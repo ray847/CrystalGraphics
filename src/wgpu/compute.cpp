@@ -228,7 +228,7 @@ std::expected<::wgpu::ComputePipeline, Error> CreateComputePipeline(
   ::wgpu::ShaderModuleDescriptor comp_shader_desc{ ::wgpu::Default };
   comp_shader_desc.nextInChain = &comp_src_desc.chain;
   comp_shader_desc.label =
-      ::wgpu::StringView{ "Crystal Graphics compment Shader" };
+      ::wgpu::StringView{ "Crystal Graphics Compute Shader" };
   ::wgpu::raii::ShaderModule comp_shader_module =
       device.createShaderModule(comp_shader_desc);
   if (auto e = global::error_stack.Pop()) return std::unexpected(*e);

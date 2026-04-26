@@ -10,6 +10,6 @@ inline ErrorStack error_stack{};
 constexpr uint32_t resolution_width = 1960;
 constexpr uint32_t resolution_height = 1080;
 
-}
+}  // namespace crystal::graphics::wgpu::global
 
 #endif

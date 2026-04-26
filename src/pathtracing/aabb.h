@@ -7,14 +7,12 @@
 #include <glm/common.hpp>
 #include <glm/ext/vector_float3.hpp>
 
-#include "CrystalGraphics/scene.h"
-#include "CrystalGraphics/vertex.h"
+#include "src/scene_impl.h"
 
 namespace crystal::graphics {
 
 class AABB {
  public:
-  using Primitive = Scene::Primitive;
   /* Variables */
   glm::vec3 lb_ = { std::numeric_limits<float>::max(),
                     std::numeric_limits<float>::max(),

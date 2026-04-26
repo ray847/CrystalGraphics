@@ -1,9 +1,9 @@
-#ifndef CRYSTALGRAPHICS_VERTEX_H_
-#define CRYSTALGRAPHICS_VERTEX_H_
+#ifndef CRYSTALGRAPHICS_SRC_VERTEX_H_
+#define CRYSTALGRAPHICS_SRC_VERTEX_H_
 
 #include <glm/ext/vector_float3.hpp>
-#include <vector>
 
+#include <vector>
 
 namespace crystal::graphics {
 

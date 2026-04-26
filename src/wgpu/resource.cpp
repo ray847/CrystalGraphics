@@ -4,6 +4,7 @@
 
 #include "CrystalGraphics/camera.h"
 #include "global.h"
+#include "src/vertex.h"
 #include "src/pathtracing/blas.h"
 #include "src/pathtracing/bvh.h"
 #include "webgpu/webgpu-raii.hpp"

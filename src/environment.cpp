@@ -1,7 +1,6 @@
 #include "CrystalGraphics/environment.h"
 
 #include <memory>
-#include <unordered_map>
 
 #include "environment.h"
 #include "glfw/environment.h"

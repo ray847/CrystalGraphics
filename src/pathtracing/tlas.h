@@ -2,7 +2,6 @@
 #define CRYSTALGRAPHICS_SRC_PATHTRACING_TLAS_H_
 
 #include <glm/ext/vector_float3.hpp>
-#include <iostream>
 #include <limits>
 #include <vector>
 
@@ -11,10 +10,9 @@
 #include "aabb.h"
 #include "glm/matrix.hpp"
 #include "instance.h"
+#include "src/scene_impl.h"
 
 namespace crystal::graphics {
-
-using Primitive = Scene::Primitive;
 
 struct alignas(16) TLASNode {
   alignas(16) glm::vec3 lb = {
@@ -34,8 +32,9 @@ struct alignas(16) TLASNode {
 class TLAS {
  public:
   TLAS(const Scene& scene, const std::vector<size32_t>& blas_roots) {
+    const Scene::Impl& impl = *scene.impl_;
     std::vector<BoundedPrimitive> bounded_prims;
-    bounded_prims.reserve(scene.space_.ObjView<Primitive>().size());
+    bounded_prims.reserve(impl.space_.ObjView<Primitive>().size());
     auto trans_aabb = [](const AABB& aabb, const glm::mat4& matrix) {
       glm::vec3 lb = glm::vec3(matrix[3]);
       glm::vec3 ub = lb;
@@ -55,7 +54,7 @@ class TLAS {
       return AABB{ lb, ub };
     };
     for (auto [i, prim_blas_root] : std::views::enumerate(
-             std::views::zip(scene.space_.ObjView<Primitive>(), blas_roots))) {
+             std::views::zip(impl.space_.ObjView<Primitive>(), blas_roots))) {
       auto prim = std::get<0>(prim_blas_root);
       size32_t blas_root = std::get<1>(prim_blas_root);
       auto world_trans = prim.SubSpaceIdx().AbsTrans();
@@ -65,7 +64,7 @@ class TLAS {
           .material_idx = static_cast<size32_t>(i),
       });
       BoundedPrimitive res = {
-        .aabb = trans_aabb(AABB{ *prim, scene.vertices_ }, world_trans.mat),
+        .aabb = trans_aabb(AABB{ *prim, impl.vertices_ }, world_trans.mat),
         .prim_idx = static_cast<size32_t>(i),
         .blas_root = blas_roots[static_cast<std::size_t>(i)]
       };

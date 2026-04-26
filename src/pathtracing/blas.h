@@ -7,8 +7,8 @@
 #include <ranges>
 #include <vector>
 
-#include "CrystalGraphics/scene.h"
 #include "aabb.h"
+#include "src/scene_impl.h"
 
 namespace crystal::graphics {
 
@@ -34,10 +34,11 @@ struct alignas(16) Index {
 class BLAS {
  public:
   BLAS(const Scene& scene) {
-    roots_.reserve(scene.space_.ObjView<Primitive>().size());
-    nodes_.reserve(scene.indicies_.size() / 3 * 2);
-    indices_.reserve(scene.indicies_.size() / 3);
-    for (const auto& primitive : scene.space_.ObjView<Primitive>())
+    const Scene::Impl& impl = *scene.impl_;
+    roots_.reserve(impl.space_.ObjView<Primitive>().size());
+    nodes_.reserve(impl.indices_.size() / 3 * 2);
+    indices_.reserve(impl.indices_.size() / 3);
+    for (const auto& primitive : impl.space_.ObjView<Primitive>())
       BuildPrimitive(*primitive, scene);
   }
 
@@ -54,7 +55,6 @@ class BLAS {
   }
 
  private:
-  using Primitive = Scene::Primitive;
   struct BoundedTriangle {
     AABB aabb;
     glm::vec3 center;
@@ -70,20 +70,21 @@ class BLAS {
   std::vector<Index> indices_;
 
   void BuildPrimitive(const Primitive& primitive, const Scene& scene) {
+    const Scene::Impl& impl = *scene.impl_;
     size32_t triangle_count = primitive.index_count / 3;
     /* Extract triangle info. */
     std::vector<TriangleInfo> triangle_info =
         std::views::iota(0u, triangle_count)
         | std::views::transform([&](size32_t triangle_idx) -> TriangleInfo {
             size32_t i0 =
-                scene.indicies_[primitive.index_offset + triangle_idx * 3 + 0];
+                impl.indices_[primitive.index_offset + triangle_idx * 3 + 0];
             size32_t i1 =
-                scene.indicies_[primitive.index_offset + triangle_idx * 3 + 1];
+                impl.indices_[primitive.index_offset + triangle_idx * 3 + 1];
             size32_t i2 =
-                scene.indicies_[primitive.index_offset + triangle_idx * 3 + 2];
-            const glm::vec3& v0 = scene.vertices_[i0].position;
-            const glm::vec3& v1 = scene.vertices_[i1].position;
-            const glm::vec3& v2 = scene.vertices_[i2].position;
+                impl.indices_[primitive.index_offset + triangle_idx * 3 + 2];
+            const glm::vec3& v0 = impl.vertices_[i0].position;
+            const glm::vec3& v1 = impl.vertices_[i1].position;
+            const glm::vec3& v2 = impl.vertices_[i2].position;
             return TriangleInfo{ .center = (v0 + v1 + v2) / 3.0f,
                                  .index = triangle_idx };
           })
@@ -103,9 +104,9 @@ class BLAS {
     /* Extract triangles. */
     for (const auto& info : triangle_info) {
       size32_t idx_offset = primitive.index_offset + (info.index * 3);
-      indices_.emplace_back(scene.indicies_[idx_offset + 0],
-                            scene.indicies_[idx_offset + 1],
-                            scene.indicies_[idx_offset + 2]);
+      indices_.emplace_back(impl.indices_[idx_offset + 0],
+                            impl.indices_[idx_offset + 1],
+                            impl.indices_[idx_offset + 2]);
     }
   }
 
@@ -117,6 +118,7 @@ class BLAS {
                  const Scene& scene,
                  size32_t triangle_offset) {
     BLASNode& node = nodes_[node_idx];
+    const Scene::Impl& impl = *scene.impl_;
     /* AABB */
     node.lb = glm::vec3(std::numeric_limits<float>::max(),
                         std::numeric_limits<float>::max(),
@@ -127,12 +129,12 @@ class BLAS {
     for (size32_t i = l; i < r; ++i) {
       size32_t idx_offset =
           primitive.index_offset + (triangle_info[i].index * 3);
-      size32_t i0 = scene.indicies_[idx_offset + 0];
-      size32_t i1 = scene.indicies_[idx_offset + 1];
-      size32_t i2 = scene.indicies_[idx_offset + 2];
-      const glm::vec3& v0 = scene.vertices_[i0].position;
-      const glm::vec3& v1 = scene.vertices_[i1].position;
-      const glm::vec3& v2 = scene.vertices_[i2].position;
+      size32_t i0 = impl.indices_[idx_offset + 0];
+      size32_t i1 = impl.indices_[idx_offset + 1];
+      size32_t i2 = impl.indices_[idx_offset + 2];
+      const glm::vec3& v0 = impl.vertices_[i0].position;
+      const glm::vec3& v1 = impl.vertices_[i1].position;
+      const glm::vec3& v2 = impl.vertices_[i2].position;
       node.lb = glm::min(node.lb, glm::min(glm::min(v0, v1), v2));
       node.ub = glm::max(node.ub, glm::max(glm::max(v0, v1), v2));
     }
