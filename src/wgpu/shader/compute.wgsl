@@ -25,7 +25,7 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
 }
 
 fn camera_ray(coord: vec2f) -> package_pathtrace_math_Ray {
-    let dx: vec3f = normalize(cross(vec3f(0, 1, 0), camera.dir)) * camera.viewport.x;
+    let dx: vec3f = normalize(cross(vec3f(0, 0, 1), camera.dir)) * camera.viewport.x;
     let dy: vec3f = normalize(cross(dx, camera.dir)) * camera.viewport.y;
     return package_pathtrace_math_Ray(camera.pos, normalize(camera.dir + coord.x * dx + coord.y * dy));
 }

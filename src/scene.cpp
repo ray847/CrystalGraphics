@@ -3,6 +3,7 @@
 #include <cgltf.h>
 
 #include <filesystem>
+#include <glm/trigonometric.hpp>
 
 #include "CrystalGraphics/public.h"
 #include "scene_impl.h"
@@ -10,15 +11,13 @@
 namespace crystal::graphics {
 
 Scene::Scene(const std::filesystem::path& filepath) :
-    filepath_(filepath),
-    impl_(std::make_unique<Impl>()) {
+    filepath_(filepath), impl_(std::make_unique<Impl>()) {
 }
 
 Scene::~Scene() = default;
 
 Scene::Scene(Scene&& other) noexcept :
-    filepath_(std::move(other.filepath_)),
-    impl_(std::move(other.impl_)) {
+    filepath_(std::move(other.filepath_)), impl_(std::move(other.impl_)) {
 }
 
 std::expected<Scene, Error> LoadScene(std::filesystem::path file) {
@@ -155,8 +154,8 @@ std::expected<Scene, Error> LoadScene(std::filesystem::path file) {
 
   cgltf_free(data);
 
-  /* Coordinate system translate. */
-  // space.RootSubSpace().Trans().IncrRotate(glm::degrees(-90.0f), { 1, 0, 0 });
+  /* Convert glTF's y-up coordinates into CrystalGraphics' z-up world. */
+  space.RootSubSpace().Trans().IncrRotate(glm::radians(90.0f), { 1, 0, 0 });
 
   return res;
 }

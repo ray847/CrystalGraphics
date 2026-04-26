@@ -32,8 +32,8 @@ int main() {
                 / 1000 / 2;
     float dis = 1.0f;
     crystal::graphics::Camera camera{
-      .position = { dis * std::cos(angle), 0.5, dis * std::sin(angle) },
-      .direction = { -std::cos(angle), 0, -std::sin(angle) },
+      .position = { dis * std::cos(angle), dis * std::sin(angle), 0.5 },
+      .direction = { -std::cos(angle), -std::sin(angle), 0 },
       .viewport = { 1.960, 1.080 }
     };
     if constexpr (kCPU) {

@@ -39,8 +39,7 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
 fn camera_ray(coord: vec2f) -> Ray {
     let dx: vec3f = normalize(
         cross(
-            vec3f(0, 1, 0),
-            //vec3f(0, 0, 1),
+            vec3f(0, 0, 1),
             camera.dir
         )
     ) * camera.viewport.x;

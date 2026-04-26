@@ -108,7 +108,7 @@ RayHitInfo RayTraverseTLAS(const Ray& ray, const SceneData& scene_data) {
 
 Ray CameraRay(const glm::vec2& coord, const Camera& camera) {
   glm::vec3 dx =
-      glm::normalize(glm::cross(glm::vec3(0, 1, 0), camera.direction))
+      glm::normalize(glm::cross(glm::vec3(0, 0, 1), camera.direction))
       * camera.viewport.x;
   glm::vec3 dy =
       glm::normalize(glm::cross(dx, camera.direction)) * camera.viewport.y;
