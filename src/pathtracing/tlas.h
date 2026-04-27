@@ -61,7 +61,7 @@ class TLAS {
       instances_.push_back(Instance{
           .inv_trans = glm::inverse(world_trans.mat),
           .blas_root_idx = blas_root,
-          .material_idx = static_cast<size32_t>(i),
+          .material_idx = prim->material_idx,
       });
       BoundedPrimitive res = {
         .aabb = trans_aabb(AABB{ *prim, impl.vertices_ }, world_trans.mat),

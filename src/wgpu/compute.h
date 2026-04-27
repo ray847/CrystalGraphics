@@ -120,6 +120,7 @@ std::expected<ComputeBindGroups, Error> CreateComputeBindGroups(
     ::wgpu::Buffer& blas_idx_vert_storage,
     std::size_t idx_offset,
     std::size_t vert_offset,
+    std::size_t mat_offset,
     ComputeBindGroupLayouts& layouts,
     ::wgpu::Device& device);
 
@@ -130,6 +131,7 @@ std::expected<void, Error> UpdateComputeBindGroup2(
     ::wgpu::Buffer& blas_idx_vert_storage,
     std::size_t idx_offset,
     std::size_t vert_offset,
+    std::size_t mat_offset,
     ComputeBindGroupLayouts& layouts,
     ::wgpu::Device& device);
 

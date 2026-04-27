@@ -13,10 +13,14 @@ class SceneData {
  public:
   /* Variables */
   const std::vector<Vertex>& vertices_;
+  const std::vector<Material>& materials_;
   BVH bvh_;
 
   /* Constructor */
-  SceneData(const Scene& scene) : vertices_(scene.impl_->vertices_), bvh_(scene) {
+  SceneData(const Scene& scene) :
+      vertices_(scene.impl_->vertices_),
+      materials_(scene.impl_->materials_),
+      bvh_(scene) {
   }
 };
 

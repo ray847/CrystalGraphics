@@ -4,7 +4,8 @@ import package::pathtrace::{
     bvh::ray_hit,
     lod::{LOD, reach_end, decr},
     radiance::{Radiance, radiate},
-    sample::{Sample, sample},
+    sample::{GeneratedRays, generateRays, MAX_GENERATED_COUNT},
+    reflect::reflect,
 };
 
 const MAX_TRACE_DEPTH: u32 = 8;
@@ -15,8 +16,9 @@ struct Stack {
     lod: LOD,
     /* Local */
     hit_info: HitInfo,
-    sampled_rays: Sample,
-    iter: u32,
+    generated_rays: GeneratedRays,
+    generated_ray_radiance: array<Radiance, MAX_GENERATED_COUNT>,
+    iter: i32,
     in_recurse: bool,
     /* Return */
     surface_radiance: Radiance,
@@ -49,7 +51,7 @@ fn trace(ray: Ray) -> Radiance {
                 top--;
                 continue;
             } else {
-                stk[top].sampled_rays = sample(
+                stk[top].generated_rays = generateRays(
                     stk[top].ray.dir,
                     stk[top].hit_info.surface_pos,
                     stk[top].lod
@@ -60,33 +62,25 @@ fn trace(ray: Ray) -> Radiance {
         }
         /* Collect Return Value */
         else {
-            stk[top].sampled_rays.ray_radiance[stk[top].iter - 1] = ret;
+            stk[top].generated_ray_radiance[stk[top].iter - 1] = ret;
         }
 
         /* Sample Loop */
-        if stk[top].iter < stk[top].sampled_rays.count {
+        if stk[top].iter < stk[top].generated_rays.count {
             /* Recursion Call */
-            stk[top + 1].ray = stk[top].sampled_rays.rays[stk[top].iter];
+            stk[top + 1].ray = stk[top].generated_rays.rays[stk[top].iter];
             stk[top + 1].lod = decr(stk[top].lod);
             stk[top].iter += 1;
             top++;
             continue;
         } else {
             /* Return */
-            /* Temporary Solution */
-            if stk[top].sampled_rays.count == 0 {
-                ret = Radiance(0.0);
-                stk[top] = Stack();
-                top--;
-                continue;
-            }
-            ret = Radiance(0.0);
-            for (var i: u32; i < stk[top].sampled_rays.count; i++) {
-                ret += stk[top].sampled_rays.ray_radiance[i];
-            }
-            ret /= f32(stk[top].sampled_rays.count);
-            // Temporary local/recursive blend until material throughput exists.
-            // ret = (ret + radiate(stk[top].hit_info.surface_pos, stk[top].lod)) / 2.0;
+            /* Input radiance. */
+            ret = reflect(
+                stk[top].ray.dir,
+                stk[top].generated_rays,
+                stk[top].generated_ray_radiance
+            );
             stk[top] = Stack(); // clear stack frame
             top--;
             continue;

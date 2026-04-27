@@ -35,6 +35,8 @@ struct package_pathtrace_math_Ray {
     dir: vec3f
 }
 
+const package_pathtrace_math_PI: f32 = 3.1415926535;
+
 const package_pathtrace_math_EPSILON: f32 = 1e-12;
 
 const package_pathtrace_math__1RAY_OFFSET: f32 = 0.0001;
@@ -58,6 +60,13 @@ fn package_pathtrace_math__2ray_intersect_aabb(ray: package_pathtrace_math_Ray, 
     return t_far >= t_near && t_far > 0.0;
 }
 
+fn package_pathtrace_math_makeTangentSpace(n: vec3f) -> mat3x3f {
+    let helper = select(vec3f(1.0, 0.0, 0.0), vec3f(0.0, 1.0, 0.0), abs(n.x) > 0.9);
+    let tangent = normalize(cross(helper, n));
+    let bitangent = cross(n, tangent);
+    return mat3x3f(tangent, bitangent, n);
+}
+
 var<private> package_pathtrace_math__1rng_state: u32;
 
 fn package_pathtrace_math__1seed_rng(seed: u32) {
@@ -77,7 +86,13 @@ fn package_pathtrace_math__1rand_float() -> f32 {
 }
 
 fn package_pathtrace_render_render(ray: package_pathtrace_math_Ray) -> package_pathtrace_luminance_Luminance {
-    return package_pathtrace_luminance_illuminate(package_pathtrace_trace_trace(ray));
+    const SAMPLES: i32 = 4;
+    var radiance = package_pathtrace_radiance_Radiance();
+    for (var i: i32; i < SAMPLES; i++) {
+        radiance += package_pathtrace_trace_trace(ray);
+    }
+    radiance /= f32(SAMPLES);
+    return package_pathtrace_luminance_illuminate(radiance);
 }
 
 alias package_pathtrace_luminance_Luminance = vec3f;
@@ -98,8 +113,9 @@ struct package_pathtrace_trace_Stack {
     ray: package_pathtrace_math_Ray,
     lod: package_pathtrace_lod_LOD,
     hit_info: package_pathtrace_structural_HitInfo,
-    sampled_rays: package_pathtrace_sample_Sample,
-    iter: u32,
+    generated_rays: package_pathtrace_sample_GeneratedRays,
+    generated_ray_radiance: array<package_pathtrace_radiance_Radiance, package_pathtrace_sample__2MAX_GENERATED_COUNT>,
+    iter: i32,
     in_recurse: bool,
     surface_radiance: package_pathtrace_radiance_Radiance
 }
@@ -126,33 +142,23 @@ fn package_pathtrace_trace_trace(ray: package_pathtrace_math_Ray) -> package_pat
                 continue;
             }
             else {
-                stk[top].sampled_rays = package_pathtrace_sample_sample(stk[top].ray.dir, stk[top].hit_info.surface_pos, stk[top].lod);
+                stk[top].generated_rays = package_pathtrace_sample_generateRays(stk[top].ray.dir, stk[top].hit_info.surface_pos, stk[top].lod);
                 stk[top].iter = 0;
                 stk[top].in_recurse = true;
             }
         }
         else {
-            stk[top].sampled_rays.ray_radiance[stk[top].iter - 1] = ret;
+            stk[top].generated_ray_radiance[stk[top].iter - 1] = ret;
         }
-        if stk[top].iter < stk[top].sampled_rays.count {
-            stk[top + 1].ray = stk[top].sampled_rays.rays[stk[top].iter];
+        if stk[top].iter < stk[top].generated_rays.count {
+            stk[top + 1].ray = stk[top].generated_rays.rays[stk[top].iter];
             stk[top + 1].lod = package_pathtrace_lod_decr(stk[top].lod);
             stk[top].iter += 1;
             top++;
             continue;
         }
         else {
-            if stk[top].sampled_rays.count == 0 {
-                ret = package_pathtrace_radiance_Radiance(0.0);
-                stk[top] = package_pathtrace_trace_Stack();
-                top--;
-                continue;
-            }
-            ret = package_pathtrace_radiance_Radiance(0.0);
-            for (var i: u32; i < stk[top].sampled_rays.count; i++) {
-                ret += stk[top].sampled_rays.ray_radiance[i];
-            }
-            ret /= f32(stk[top].sampled_rays.count);
+            ret = package_pathtrace_reflect_reflect(stk[top].ray.dir, stk[top].generated_rays, stk[top].generated_ray_radiance);
             stk[top] = package_pathtrace_trace_Stack();
             top--;
             continue;
@@ -190,7 +196,8 @@ struct package_pathtrace_structural_TravelInfo {
 
 struct package_pathtrace_structural_SurfacePos {
     pos: package_pathtrace_structural_Pos,
-    norm: package_pathtrace_structural_Vec
+    norm: package_pathtrace_structural_Vec,
+    material_idx: u32
 }
 
 struct package_pathtrace_structural_HitInfo {
@@ -198,22 +205,56 @@ struct package_pathtrace_structural_HitInfo {
     surface_pos: package_pathtrace_structural_SurfacePos
 }
 
-const package_pathtrace_sample__2MAX_SAMPLE_COUNT: u32 = 1;
-
-struct package_pathtrace_sample_Sample {
-    count: u32,
-    rays: array<package_pathtrace_math_Ray, package_pathtrace_sample__2MAX_SAMPLE_COUNT>,
-    ray_radiance: array<package_pathtrace_radiance_Radiance, package_pathtrace_sample__2MAX_SAMPLE_COUNT>
+struct package_pathtrace_sample_Material {
+    base_color: vec3f,
+    emission_strength: f32,
+    emission_color: vec3f,
+    roughness: f32,
+    metallic: f32,
+    transmission: f32,
+    ior: f32,
+    flags: u32
 }
 
-fn package_pathtrace_sample_sample(in_dir: package_pathtrace_structural_Vec, surface_pos: package_pathtrace_structural_SurfacePos, lod: package_pathtrace_lod_LOD) -> package_pathtrace_sample_Sample {
-    var res: package_pathtrace_sample_Sample;
-    res.count = 1;
-    let rand_vec = normalize(package_pathtrace_structural_Vec(package_pathtrace_math__1rand_float(), package_pathtrace_math__1rand_float(), package_pathtrace_math__1rand_float()));
-    let same_hemisphere = dot(rand_vec, surface_pos.norm) > 0.0;
-    let out_dir = select(-rand_vec, rand_vec, same_hemisphere);
-    res.rays[0] = package_pathtrace_math_Ray(surface_pos.pos + out_dir * package_pathtrace_math__1RAY_OFFSET, out_dir);
+@group(2) @binding(5)
+var<storage, read> package_pathtrace_sample_materials: array<package_pathtrace_sample_Material>;
+
+const package_pathtrace_sample__2MAX_GENERATED_COUNT: i32 = 4;
+
+struct package_pathtrace_sample_GeneratedRays {
+    count: i32,
+    rays: array<package_pathtrace_math_Ray, package_pathtrace_sample__2MAX_GENERATED_COUNT>,
+    ray_coeff: array<vec3f, package_pathtrace_sample__2MAX_GENERATED_COUNT>
+}
+
+fn package_pathtrace_sample_generateRays(in_dir: vec3f, surface_pos: package_pathtrace_structural_SurfacePos, lod: package_pathtrace_lod_LOD) -> package_pathtrace_sample_GeneratedRays {
+    var res: package_pathtrace_sample_GeneratedRays;
+    res.count = max(1, package_pathtrace_sample__2MAX_GENERATED_COUNT - lod.depth);
+    for (var i: i32 = 0; i < res.count; i++) {
+        let material: package_pathtrace_sample_Material = package_pathtrace_sample_materials[surface_pos.material_idx];
+        let sampled = package_pathtrace_sample_sample(in_dir, surface_pos, material);
+        res.rays[i] = package_pathtrace_math_Ray(surface_pos.pos + sampled.out_dir * package_pathtrace_math__1RAY_OFFSET, sampled.out_dir);
+        let f = package_pathtrace_sample_reflectDist(in_dir, sampled.out_dir, material);
+        let projection_coeff: f32 = max(dot(sampled.out_dir, surface_pos.norm), 0f);
+        res.ray_coeff[i] = f * projection_coeff / sampled.prob;
+    }
     return res;
+}
+
+struct package_pathtrace_sample_Sample {
+    out_dir: vec3f,
+    prob: f32
+}
+
+fn package_pathtrace_sample_sample(in_dir: vec3f, surface_pos: package_pathtrace_structural_SurfacePos, material: package_pathtrace_sample_Material) -> package_pathtrace_sample_Sample {
+    let r = sqrt(package_pathtrace_math__1rand_float());
+    let angle = 2 * package_pathtrace_math_PI * package_pathtrace_math__1rand_float();
+    let local = vec3f(r * cos(angle), r * sin(angle), sqrt(max(0f, 1 - r * r)));
+    return package_pathtrace_sample_Sample(package_pathtrace_math_makeTangentSpace(surface_pos.norm) * local, local.z / package_pathtrace_math_PI);
+}
+
+fn package_pathtrace_sample_reflectDist(in_dir: vec3f, out_dir: vec3f, material: package_pathtrace_sample_Material) -> vec3f {
+    return material.base_color / package_pathtrace_math_PI;
 }
 
 struct package_pathtrace_bvh_TLASNode {
@@ -274,6 +315,7 @@ fn package_pathtrace_bvh__2ray_traverse_tlas(ray: package_pathtrace_math_Ray) ->
     var dis: f32 = package_pathtrace_math_MAX;
     var local_normal: vec3f;
     var inv_trans: mat4x4f;
+    var material_idx: u32;
     while (stack_top >= 0) {
         let node_idx = stack[stack_top];
         stack_top--;
@@ -295,14 +337,15 @@ fn package_pathtrace_bvh__2ray_traverse_tlas(ray: package_pathtrace_math_Ray) ->
                     dis = blas_hit_info.global_distance;
                     local_normal = blas_hit_info.local_normal;
                     inv_trans = instance.inv_trans;
+                    material_idx = instance.material_idx;
                 }
             }
         }
     }
     if dis >= package_pathtrace_math_MAX {
-        return package_pathtrace_structural_HitInfo(package_pathtrace_structural_TravelInfo(false, package_pathtrace_math_MAX), package_pathtrace_structural_SurfacePos(vec3f(0.0), vec3f(0.0)));
+        return package_pathtrace_structural_HitInfo(package_pathtrace_structural_TravelInfo(false, package_pathtrace_math_MAX), package_pathtrace_structural_SurfacePos(vec3f(), vec3f(), 0));
     }
-    return package_pathtrace_structural_HitInfo(package_pathtrace_structural_TravelInfo(true, dis), package_pathtrace_structural_SurfacePos(ray.pos + dis * ray.dir, normalize((transpose(inv_trans) * vec4f(local_normal, 0f)).xyz)));
+    return package_pathtrace_structural_HitInfo(package_pathtrace_structural_TravelInfo(true, dis), package_pathtrace_structural_SurfacePos(ray.pos + dis * ray.dir, normalize((transpose(inv_trans) * vec4f(local_normal, 0f)).xyz), material_idx));
 }
 
 fn package_pathtrace_bvh__2ray_traverse_blas(ray: package_pathtrace_math_Ray, root_idx: u32) -> package_pathtrace_bvh_BlasHitInfo {
@@ -365,5 +408,14 @@ fn package_pathtrace_bvh__2ray_intersect_triangle(ray: package_pathtrace_math_Ra
         return t;
     }
     return -1.0;
+}
+
+fn package_pathtrace_reflect_reflect(dir: vec3f, generated_rays: package_pathtrace_sample_GeneratedRays, ray_radiance: array<package_pathtrace_radiance_Radiance, package_pathtrace_sample__2MAX_GENERATED_COUNT>) -> package_pathtrace_radiance_Radiance {
+    var radiance = package_pathtrace_radiance_Radiance();
+    for (var i: i32; i < generated_rays.count; i++) {
+        radiance += ray_radiance[i] * generated_rays.ray_coeff[i];
+    }
+    radiance /= f32(generated_rays.count);
+    return radiance;
 }
 

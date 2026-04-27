@@ -4,6 +4,7 @@
 
 #include "CrystalGraphics/camera.h"
 #include "global.h"
+#include "src/material.h"
 #include "src/vertex.h"
 #include "src/pathtracing/blas.h"
 #include "src/pathtracing/bvh.h"
@@ -62,7 +63,7 @@ std::expected<Resources, Error> CreateResources(
   auto tlas_storage = CreateBVHStorage(min_offset_alignment + 4, device);
   if (!tlas_storage) return std::unexpected(tlas_storage.error());
   /* Blas Storage */
-  auto blas_storage = CreateBVHStorage(min_offset_alignment * 2 + 4, device);
+  auto blas_storage = CreateBVHStorage(min_offset_alignment * 3 + 4, device);
   if (!blas_storage) return std::unexpected(blas_storage.error());
   return Resources{
     .surface_texture = std::move(surface_texture),
@@ -73,6 +74,7 @@ std::expected<Resources, Error> CreateResources(
     .blas_storage = std::move(*blas_storage),
     .idx_offset = min_offset_alignment,
     .vert_offset = min_offset_alignment * 2,
+    .mat_offset = min_offset_alignment * 3,
   };
 }
 
@@ -133,6 +135,7 @@ std::expected<bool, Error> AssertStorageSize(const SceneData& scene_data,
 
   const auto& bvh = scene_data.bvh_;
   const auto& vertices = scene_data.vertices_;
+  const auto& materials = scene_data.materials_;
 
   /* TLAS Nodes & Instances */
   std::size_t tlas_nodes_size = bvh.TLAS().Nodes().size() * sizeof(TLASNode);
@@ -147,10 +150,11 @@ std::expected<bool, Error> AssertStorageSize(const SceneData& scene_data,
   bool inst_offset_change = tlas_inst_offset != resources.inst_offset;
   resources.inst_offset = tlas_inst_offset;
 
-  /* BLAS Nodes & Indices & Vertices */
+  /* BLAS Nodes & Indices & Vertices & Materials */
   std::size_t blas_nodes_size = bvh.BLAS().Nodes().size() * sizeof(BLASNode);
   std::size_t indices_size = bvh.BLAS().Indices().size() * sizeof(Index);
   std::size_t vertices_size = vertices.size() * sizeof(Vertex);
+  std::size_t materials_size = materials.size() * sizeof(Material);
   std::size_t idx_offset = std::max((blas_nodes_size + min_offset_alignment - 1)
                                         & ~(min_offset_alignment - 1),
                                     resources.idx_offset);
@@ -158,15 +162,21 @@ std::expected<bool, Error> AssertStorageSize(const SceneData& scene_data,
       std::max((idx_offset + indices_size + min_offset_alignment - 1)
                    & ~(min_offset_alignment - 1),
                resources.vert_offset);
+  std::size_t mat_offset =
+      std::max((vert_offset + vertices_size + min_offset_alignment - 1)
+                   & ~(min_offset_alignment - 1),
+               resources.mat_offset);
   auto assert_blas_res =
-      assert_storage(resources.blas_storage, vert_offset + vertices_size);
+      assert_storage(resources.blas_storage, mat_offset + materials_size);
   bool idx_offset_change = idx_offset != resources.idx_offset;
   resources.idx_offset = idx_offset;
   bool vert_offset_change = vert_offset != resources.vert_offset;
   resources.vert_offset = vert_offset;
+  bool mat_offset_change = mat_offset != resources.mat_offset;
+  resources.mat_offset = mat_offset;
   if (!assert_blas_res) return std::unexpected(assert_blas_res.error());
   return *assert_blas_res || *assert_tlas_res || inst_offset_change
-      || idx_offset_change || vert_offset_change;
+      || idx_offset_change || vert_offset_change || mat_offset_change;
 }
 
 std::expected<bool, Error> WriteScene(const SceneData& scene_data,
@@ -178,7 +188,8 @@ std::expected<bool, Error> WriteScene(const SceneData& scene_data,
       AssertStorageSize(scene_data, resources, min_offset_alignment, device);
   if (!assert_size_res) return std::unexpected(assert_size_res.error());
 
-  const auto vertices = scene_data.vertices_;
+  const auto& vertices = scene_data.vertices_;
+  const auto& materials = scene_data.materials_;
   const auto& bvh = scene_data.bvh_;
   /* Write buffer. */
   /* TLAS Nodes */
@@ -209,6 +220,11 @@ std::expected<bool, Error> WriteScene(const SceneData& scene_data,
                     resources.vert_offset,
                     static_cast<const void*>(vertices.data()),
                     vertices.size() * sizeof(Vertex));
+  /* Materials */
+  queue.writeBuffer(*resources.blas_storage,
+                    resources.mat_offset,
+                    static_cast<const void*>(materials.data()),
+                    materials.size() * sizeof(Material));
   if (auto e = global::error_stack.Pop()) return std::unexpected(*e);
   return *assert_size_res;
 }

@@ -49,6 +49,7 @@ fn ray_traverse_tlas(ray: Ray) -> HitInfo {
     var dis: f32 = MAX;
     var local_normal: vec3f;
     var inv_trans: mat4x4f;
+    var material_idx: u32;
 
     while stack_top >= 0 {
         let node_idx = stack[stack_top];
@@ -76,21 +77,13 @@ fn ray_traverse_tlas(ray: Ray) -> HitInfo {
                     dis = blas_hit_info.global_distance;
                     local_normal = blas_hit_info.local_normal;
                     inv_trans = instance.inv_trans;
+                    material_idx = instance.material_idx;
                 }
             }
         }
     }
     if dis >= MAX {
-        return HitInfo(
-            TravelInfo(
-                false,
-                MAX,
-            ),
-            SurfacePos(
-                vec3f(0.0),
-                vec3f(0.0),
-            )
-        );
+        return HitInfo(TravelInfo(false, MAX), SurfacePos(vec3f(), vec3f(), 0));
     }
 
     return HitInfo(
@@ -100,7 +93,8 @@ fn ray_traverse_tlas(ray: Ray) -> HitInfo {
         ),
         SurfacePos(
             ray.pos + dis * ray.dir,
-            normalize((transpose(inv_trans) * vec4f(local_normal, 0.0f)).xyz)
+            normalize((transpose(inv_trans) * vec4f(local_normal, 0.0f)).xyz),
+            material_idx,
         )
     );
 }

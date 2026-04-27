@@ -10,6 +10,50 @@
 
 namespace crystal::graphics {
 
+namespace {
+
+Material DefaultMaterial() {
+  return Material{
+    .base_color = { 1.0f, 1.0f, 1.0f },
+    .emission_strength = 0.0f,
+    .emission_color = { 0.0f, 0.0f, 0.0f },
+    .roughness = 1.0f,
+    .metallic = 0.0f,
+    .transmission = 0.0f,
+    .ior = 1.5f,
+    .flags = 0,
+  };
+}
+
+Material LoadMaterial(const cgltf_material& material) {
+  Material res = DefaultMaterial();
+
+  const auto& pbr = material.pbr_metallic_roughness;
+  res.base_color = {
+    pbr.base_color_factor[0],
+    pbr.base_color_factor[1],
+    pbr.base_color_factor[2],
+  };
+  res.metallic = pbr.metallic_factor;
+  res.roughness = pbr.roughness_factor;
+
+  res.emission_color = {
+    material.emissive_factor[0],
+    material.emissive_factor[1],
+    material.emissive_factor[2],
+  };
+  if (material.has_emissive_strength)
+    res.emission_strength = material.emissive_strength.emissive_strength;
+
+  if (material.has_transmission)
+    res.transmission = material.transmission.transmission_factor;
+  if (material.has_ior) res.ior = material.ior.ior;
+
+  return res;
+}
+
+}  // namespace
+
 Scene::Scene(const std::filesystem::path& filepath) :
     filepath_(filepath), impl_(std::make_unique<Impl>()) {
 }
@@ -24,6 +68,7 @@ std::expected<Scene, Error> LoadScene(std::filesystem::path file) {
   Scene res{ file };
   VertexContainer& vertices = res.impl_->vertices_;
   std::vector<uint32_t>& indices = res.impl_->indices_;
+  std::vector<Material>& materials = res.impl_->materials_;
   spatial::Space<Scene::Impl::SpaceDef>& space = res.impl_->space_;
 
   /* Open the file. */
@@ -41,6 +86,12 @@ std::expected<Scene, Error> LoadScene(std::filesystem::path file) {
     cgltf_free(data);
     return std::unexpected("cgltf load buffers failed.");
   }
+
+  /* Extract materials. */
+  materials.reserve(data->materials_count + 1);
+  materials.push_back(DefaultMaterial());
+  for (cgltf_size i = 0; i < data->materials_count; ++i)
+    materials.push_back(LoadMaterial(data->materials[i]));
 
   /* Extrace Meshes & Vertices. */
   std::vector<std::vector<Primitive>> primitives(data->meshes_count);
@@ -102,13 +153,20 @@ std::expected<Scene, Error> LoadScene(std::filesystem::path file) {
         }
       }
 
+      size32_t material_idx =
+          primitive.material ?
+              static_cast<size32_t>(
+                  cgltf_material_index(data, primitive.material) + 1) :
+              0;
+
       /* Primitives */
       primitives[i].push_back(
           Primitive{ .vertex_offset = primitive_vertex_offset,
                      .vertex_count = primitive_vertex_count,
                      .index_offset = primitive_index_offset,
                      .index_count = static_cast<size32_t>(
-                         primitive.indices ? primitive.indices->count : 0) });
+                         primitive.indices ? primitive.indices->count : 0),
+                     .material_idx = material_idx });
     }
   }
 
@@ -154,7 +212,7 @@ std::expected<Scene, Error> LoadScene(std::filesystem::path file) {
 
   cgltf_free(data);
 
-  /* Convert glTF's y-up coordinates into CrystalGraphics' z-up world. */
+  /* Convert glTF's y-up coordinates to z-up. */
   space.RootSubSpace().Trans().IncrRotate(glm::radians(90.0f), { 1, 0, 0 });
 
   return res;

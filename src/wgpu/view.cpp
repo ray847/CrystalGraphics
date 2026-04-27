@@ -33,6 +33,7 @@ std::expected<void, Error> Env::View(const SceneData& scene_data,
                                                   *resources_.blas_storage,
                                                   resources_.idx_offset,
                                                   resources_.vert_offset,
+                                                  resources_.mat_offset,
                                                   compute_bindgroup_layouts_,
                                                   *device_);
         !update_res)

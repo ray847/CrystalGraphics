@@ -41,3 +41,29 @@ SampledRays Sample(surface_pos, lod):
     sampled_ray.radiance = Trace(generated_ray, decr(lod))
   return sampled_rays
 ```
+
+# Reflection Model
+
+Goal is to approximate the **Distribution Function**:
+$$
+f(w_o, w_i)
+$$
+
+A distribution function should confine to these constraints:
+$$
+\begin{cases}
+\forall w_o, w_i, f(w_o, w_i) > 0 \\
+\forall w_o, w_i, f(w_o, w_i) = f(w_i, w_o) \\
+\forall w_i, \int_\Omega f(w_o, w_i)d\theta \leq 0
+\end{cases}
+$$
+
+## Lambertian Model
+
+$f$ is constant, meaning it is a diffuse reflection model.
+Given the reflection coefficient $R$, meaning $L_o = R \cdot L_i$.
+$$
+
+f(w_o, w_i) = \frac{R}{\pi}
+$$
+

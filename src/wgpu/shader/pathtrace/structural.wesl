@@ -9,6 +9,7 @@ struct TravelInfo {
 struct SurfacePos {
     pos: Pos,
     norm: Vec,
+    material_idx: u32,
 };
 
 struct HitInfo {

@@ -13,10 +13,13 @@ int main() {
     std::cerr << init_res.error() << std::endl;
     return EXIT_FAILURE;
   }
-  auto scene = crystal::graphics::LoadScene(
-      "asset/ABeautifulGame/glTF/ABeautifulGame.gltf");
+  // auto scene = crystal::graphics::LoadScene(
+  //     "asset/ABeautifulGame/glTF/ABeautifulGame.gltf");
   // auto scene =
   //     crystal::graphics::LoadScene("asset/FlightHelmet/glTF/FlightHelmet.gltf");
+  // auto scene = crystal::graphics::LoadScene("asset/Sponza/glTF/Sponza.gltf");
+  auto scene = crystal::graphics::LoadScene("asset/EnvironmentTest/glTF/"
+                                            "EnvironmentTest.gltf");
   if (!scene) {
     std::cout << scene.error() << std::endl;
     return EXIT_FAILURE;
@@ -30,32 +33,23 @@ int main() {
                       std::chrono::high_resolution_clock::now() - st)
                       .count()
                 / 1000 / 2;
-    float dis = 1.0f;
+    float dis = 12.0f;
     crystal::graphics::Camera camera{
-      .position = { dis * std::cos(angle), dis * std::sin(angle), 0.5 },
+      .position = { dis * std::cos(angle), dis * std::sin(angle), 0 },
       .direction = { -std::cos(angle), -std::sin(angle), 0 },
       .viewport = { 1.960, 1.080 }
     };
-    if constexpr (kCPU) {
-      auto view_res = crystal::graphics::CPUView(*scene, camera);
-      if (!view_res) [[unlikely]] {
-        std::cerr << view_res.error() << std::endl;
-        return EXIT_FAILURE;
-      }
-      return EXIT_SUCCESS;
-    } else {
-      auto view_res = crystal::graphics::View(*scene, camera);
-      if (!view_res) [[unlikely]] {
-        std::cerr << view_res.error() << std::endl;
-        return EXIT_FAILURE;
-      }
-      auto sync_res = crystal::graphics::EnvSync();
-      if (!sync_res) [[unlikely]] {
-        std::cerr << sync_res.error() << std::endl;
-        return EXIT_FAILURE;
-      }
-      counter++;
+    auto view_res = crystal::graphics::View(*scene, camera);
+    if (!view_res) [[unlikely]] {
+      std::cerr << view_res.error() << std::endl;
+      return EXIT_FAILURE;
     }
+    auto sync_res = crystal::graphics::EnvSync();
+    if (!sync_res) [[unlikely]] {
+      std::cerr << sync_res.error() << std::endl;
+      return EXIT_FAILURE;
+    }
+    counter++;
   }
   std::cout << "\rLoop: " << counter << std::endl;
   auto term_res = crystal::graphics::EnvTerm();

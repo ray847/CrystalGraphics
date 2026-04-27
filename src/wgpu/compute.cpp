@@ -17,6 +17,7 @@ std::expected<::wgpu::BindGroup, Error> CreateComputeBindGroup2(
     ::wgpu::Buffer& blas_storage,
     std::size_t idx_offset,
     std::size_t vert_offset,
+    std::size_t mat_offset,
     ComputeBindGroupLayouts& layouts,
     ::wgpu::Device& device);
 
@@ -71,7 +72,7 @@ std::expected<ComputeBindGroupLayouts, Error> CreateComputeBindGroupLayouts(
       }());
   if (auto e = global::error_stack.Pop()) return std::unexpected(*e);
   /* Group 2 */
-  std::array<::wgpu::BindGroupLayoutEntry, 5> group2entries{
+  std::array<::wgpu::BindGroupLayoutEntry, 6> group2entries{
     /* TLAS Nodes */
     [&] -> ::wgpu::BindGroupLayoutEntry {
       ::wgpu::BindGroupLayoutEntry tlas_entry{ ::wgpu::Default };
@@ -112,6 +113,14 @@ std::expected<ComputeBindGroupLayouts, Error> CreateComputeBindGroupLayouts(
       vertices_entry.buffer.type = ::wgpu::BufferBindingType::ReadOnlyStorage;
       return vertices_entry;
     }(),
+    /* Materials */
+    [&] -> ::wgpu::BindGroupLayoutEntry {
+      ::wgpu::BindGroupLayoutEntry materials_entry{ ::wgpu::Default };
+      materials_entry.binding = 5;
+      materials_entry.visibility = ::wgpu::ShaderStage::Compute;
+      materials_entry.buffer.type = ::wgpu::BufferBindingType::ReadOnlyStorage;
+      return materials_entry;
+    }(),
   };  // namespace crystal::graphics::wgpu
   ::wgpu::BindGroupLayout group2 =
       device.createBindGroupLayout([&] -> ::wgpu::BindGroupLayoutDescriptor {
@@ -138,6 +147,7 @@ std::expected<ComputeBindGroups, Error> CreateComputeBindGroups(
     ::wgpu::Buffer& blas_idx_vert_storage,
     std::size_t idx_offset,
     std::size_t vert_offset,
+    std::size_t mat_offset,
     ComputeBindGroupLayouts& layouts,
     ::wgpu::Device& device) {
   /* Group 0 */
@@ -189,6 +199,7 @@ std::expected<ComputeBindGroups, Error> CreateComputeBindGroups(
                                         blas_idx_vert_storage,
                                         idx_offset,
                                         vert_offset,
+                                        mat_offset,
                                         layouts,
                                         device);
   if (!group2) return std::unexpected(group2.error());
@@ -202,6 +213,7 @@ std::expected<void, Error> UpdateComputeBindGroup2(
     ::wgpu::Buffer& blas_idx_vert_storage,
     std::size_t idx_offset,
     std::size_t vert_offset,
+    std::size_t mat_offset,
     ComputeBindGroupLayouts& layouts,
     ::wgpu::Device& device) {
   auto group2 = CreateComputeBindGroup2(tlas_storage,
@@ -209,6 +221,7 @@ std::expected<void, Error> UpdateComputeBindGroup2(
                                         blas_idx_vert_storage,
                                         idx_offset,
                                         vert_offset,
+                                        mat_offset,
                                         layouts,
                                         device);
   if (!group2) return std::unexpected(group2.error());
@@ -304,9 +317,10 @@ std::expected<::wgpu::BindGroup, Error> CreateComputeBindGroup2(
     ::wgpu::Buffer& blas_idx_vert_storage,
     std::size_t idx_offset,
     std::size_t vert_offset,
+    std::size_t mat_offset,
     ComputeBindGroupLayouts& layouts,
     ::wgpu::Device& device) {
-  std::array<::wgpu::BindGroupEntry, 5> group2entries{
+  std::array<::wgpu::BindGroupEntry, 6> group2entries{
     /* TLAS Nodes */
     [&] -> ::wgpu::BindGroupEntry {
       ::wgpu::BindGroupEntry bvh{ ::wgpu::Default };
@@ -348,8 +362,17 @@ std::expected<::wgpu::BindGroup, Error> CreateComputeBindGroup2(
       vertices.binding = 4;
       vertices.buffer = blas_idx_vert_storage;
       vertices.offset = vert_offset;
-      vertices.size = blas_idx_vert_storage.getSize() - vert_offset;
+      vertices.size = mat_offset - vert_offset;
       return vertices;
+    }(),
+    /* Materials */
+    [&] -> ::wgpu::BindGroupEntry {
+      ::wgpu::BindGroupEntry materials{ ::wgpu::Default };
+      materials.binding = 5;
+      materials.buffer = blas_idx_vert_storage;
+      materials.offset = mat_offset;
+      materials.size = blas_idx_vert_storage.getSize() - mat_offset;
+      return materials;
     }(),
   };
   ::wgpu::BindGroup group2{

@@ -55,6 +55,7 @@ std::expected<Env, Error> CreateEnv(GLFWwindow* window) {
                                                    *resources->blas_storage,
                                                    resources->idx_offset,
                                                    resources->vert_offset,
+                                                   resources->mat_offset,
                                                    *compute_bindgroup_layouts,
                                                    *device);
   if (!compute_bindgroup) return std::unexpected(compute_bindgroup.error());

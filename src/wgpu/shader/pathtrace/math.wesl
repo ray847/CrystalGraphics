@@ -31,6 +31,13 @@ fn ray_intersect_aabb(ray: Ray, lb: vec3f, ub: vec3f) -> bool {
     return t_far >= t_near && t_far > 0.0;
 }
 
+fn makeTangentSpace(n: vec3f) -> mat3x3f {
+    let helper = select(vec3f(1.0, 0.0, 0.0), vec3f(0.0, 1.0, 0.0), abs(n.x) > 0.9);
+    let tangent = normalize(cross(helper, n));
+    let bitangent = cross(n, tangent);
+    return mat3x3f(tangent, bitangent, n);
+}
+
 var<private> rng_state: u32;
 
 fn seed_rng(seed: u32) {

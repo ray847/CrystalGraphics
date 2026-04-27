@@ -9,6 +9,7 @@
 
 #include "CrystalGraphics/public.h"
 #include "CrystalGraphics/scene.h"
+#include "material.h"
 #include "vertex.h"
 
 namespace crystal::graphics {
@@ -18,6 +19,7 @@ struct Primitive {
   size32_t vertex_count;
   size32_t index_offset;
   size32_t index_count;
+  size32_t material_idx;
 };
 
 struct Scene::Impl {
@@ -38,6 +40,7 @@ struct Scene::Impl {
 
   VertexContainer vertices_;
   std::vector<uint32_t> indices_;
+  std::vector<Material> materials_;
   spatial::Space<SpaceDef> space_;
 };
 

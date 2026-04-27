@@ -23,7 +23,7 @@ struct Resources {
   ::wgpu::raii::Buffer tlas_storage;
   std::size_t inst_offset;
   ::wgpu::raii::Buffer blas_storage;
-  std::size_t idx_offset, vert_offset;
+  std::size_t idx_offset, vert_offset, mat_offset;
 };
 
 std::expected<Resources, Error> CreateResources(
