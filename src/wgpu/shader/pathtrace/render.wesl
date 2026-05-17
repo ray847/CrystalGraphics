@@ -6,7 +6,7 @@ import package::pathtrace::{
 };
 
 fn render(ray: Ray) -> Luminance {
-    const SAMPLES: i32 = 4;
+    const SAMPLES: i32 = 1;
     var radiance = Radiance();
     for (var i: i32; i < SAMPLES; i++) {
         radiance += trace(ray);

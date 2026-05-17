@@ -1,5 +1,5 @@
 @vertex
-fn vert_main(@builtin(vertex_index) in_vertex_index: u32) -> @builtin(position) vec4f {
+fn vertMain(@builtin(vertex_index) in_vertex_index: u32) -> @builtin(position) vec4f {
     if in_vertex_index == 0u {
         return vec4f(-1.0, -1.0, 0.0, 1.0);
     }

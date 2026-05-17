@@ -6,6 +6,7 @@
 #include <webgpu/webgpu.h>
 
 #include <expected>
+#include <cstdint>
 #include <webgpu/webgpu-raii.hpp>
 #include <webgpu/webgpu.hpp>
 
@@ -22,8 +23,19 @@ struct Resources {
   ::wgpu::raii::Buffer camera_uniform;
   ::wgpu::raii::Buffer tlas_storage;
   std::size_t inst_offset;
-  ::wgpu::raii::Buffer blas_storage;
+  ::wgpu::raii::Buffer scene_storage;
   std::size_t idx_offset, vert_offset, mat_offset;
+  ::wgpu::raii::Texture material_texture_array;
+  ::wgpu::raii::Sampler material_texture_sampler;
+  uint32_t material_texture_width;
+  uint32_t material_texture_height;
+  uint32_t material_texture_layers;
+  std::uint64_t material_texture_signature;
+};
+
+struct SceneWriteResult {
+  bool storage_changed;
+  bool material_textures_changed;
 };
 
 std::expected<Resources, Error> CreateResources(
@@ -38,11 +50,12 @@ std::expected<void, Error> WriteCameraUniform(const Camera& camera,
                                               Resources& resources,
                                               ::wgpu::Queue& queue);
 
-std::expected<bool, Error> WriteScene(const SceneData& scene_data,
-                                      Resources& resources,
-                                      std::size_t min_offset_alignment,
-                                      ::wgpu::Queue& queue,
-                                      ::wgpu::Device& device);
+std::expected<SceneWriteResult, Error> WriteScene(
+    const SceneData& scene_data,
+    Resources& resources,
+    std::size_t min_offset_alignment,
+    ::wgpu::Queue& queue,
+    ::wgpu::Device& device);
 
 }  // namespace crystal::graphics::wgpu
 

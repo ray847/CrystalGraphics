@@ -3,6 +3,7 @@
 #include <webgpu/webgpu.h>
 
 #include <array>
+#include <cmath>
 
 #include "CrystalGraphics/camera.h"
 #include "CrystalGraphics/error.h"
@@ -11,13 +12,20 @@
 
 namespace crystal::graphics::wgpu {
 
-std::expected<::wgpu::BindGroup, Error> CreateComputeBindGroup2(
+struct ComputeBindGroup2 {
+  ::wgpu::BindGroup bindgroup;
+  ::wgpu::TextureView material_texture_array_view;
+};
+
+std::expected<ComputeBindGroup2, Error> CreateComputeBindGroup2(
     ::wgpu::Buffer& tlas_storage,
     std::size_t tlas_inst_offset,
     ::wgpu::Buffer& blas_storage,
     std::size_t idx_offset,
     std::size_t vert_offset,
     std::size_t mat_offset,
+    ::wgpu::Texture& material_texture_array,
+    ::wgpu::Sampler& material_texture_sampler,
     ComputeBindGroupLayouts& layouts,
     ::wgpu::Device& device);
 
@@ -36,7 +44,7 @@ std::expected<ComputeBindGroupLayouts, Error> CreateComputeBindGroupLayouts(
       surface_texture_entry.storageTexture.viewDimension =
           ::wgpu::TextureViewDimension::_2D;
       return surface_texture_entry;
-    }()
+    }(),
   };
   ::wgpu::BindGroupLayout group0 =
       device.createBindGroupLayout([&] -> ::wgpu::BindGroupLayoutDescriptor {
@@ -49,6 +57,7 @@ std::expected<ComputeBindGroupLayouts, Error> CreateComputeBindGroupLayouts(
         return desc;
       }());
   if (auto e = global::error_stack.Pop()) return std::unexpected(*e);
+
   /* Group 1 */
   std::array<::wgpu::BindGroupLayoutEntry, 1> group1entries{
     [&] -> ::wgpu::BindGroupLayoutEntry {
@@ -58,7 +67,7 @@ std::expected<ComputeBindGroupLayouts, Error> CreateComputeBindGroupLayouts(
       camera_entry.buffer.type = ::wgpu::BufferBindingType::Uniform;
       camera_entry.buffer.minBindingSize = sizeof(Camera);
       return camera_entry;
-    }()
+    }(),
   };
   ::wgpu::BindGroupLayout group1 =
       device.createBindGroupLayout([&] -> ::wgpu::BindGroupLayoutDescriptor {
@@ -71,8 +80,9 @@ std::expected<ComputeBindGroupLayouts, Error> CreateComputeBindGroupLayouts(
         return desc;
       }());
   if (auto e = global::error_stack.Pop()) return std::unexpected(*e);
+
   /* Group 2 */
-  std::array<::wgpu::BindGroupLayoutEntry, 6> group2entries{
+  std::array<::wgpu::BindGroupLayoutEntry, 8> group2entries{
     /* TLAS Nodes */
     [&] -> ::wgpu::BindGroupLayoutEntry {
       ::wgpu::BindGroupLayoutEntry tlas_entry{ ::wgpu::Default };
@@ -121,7 +131,26 @@ std::expected<ComputeBindGroupLayouts, Error> CreateComputeBindGroupLayouts(
       materials_entry.buffer.type = ::wgpu::BufferBindingType::ReadOnlyStorage;
       return materials_entry;
     }(),
-  };  // namespace crystal::graphics::wgpu
+    /* Material Texture Array */
+    [&] -> ::wgpu::BindGroupLayoutEntry {
+      ::wgpu::BindGroupLayoutEntry texture_entry{ ::wgpu::Default };
+      texture_entry.binding = 6;
+      texture_entry.visibility = ::wgpu::ShaderStage::Compute;
+      texture_entry.texture.sampleType = ::wgpu::TextureSampleType::Float;
+      texture_entry.texture.viewDimension =
+          ::wgpu::TextureViewDimension::_2DArray;
+      texture_entry.texture.multisampled = false;
+      return texture_entry;
+    }(),
+    /* Material Texture Sampler */
+    [&] -> ::wgpu::BindGroupLayoutEntry {
+      ::wgpu::BindGroupLayoutEntry sampler_entry{ ::wgpu::Default };
+      sampler_entry.binding = 7;
+      sampler_entry.visibility = ::wgpu::ShaderStage::Compute;
+      sampler_entry.sampler.type = ::wgpu::SamplerBindingType::Filtering;
+      return sampler_entry;
+    }(),
+  };
   ::wgpu::BindGroupLayout group2 =
       device.createBindGroupLayout([&] -> ::wgpu::BindGroupLayoutDescriptor {
         ::wgpu::BindGroupLayoutDescriptor desc{ ::wgpu::Default };
@@ -133,6 +162,7 @@ std::expected<ComputeBindGroupLayouts, Error> CreateComputeBindGroupLayouts(
         return desc;
       }());
   if (auto e = global::error_stack.Pop()) return std::unexpected(*e);
+
   return ComputeBindGroupLayouts{ group0, group1, group2 };
 }
 
@@ -148,6 +178,8 @@ std::expected<ComputeBindGroups, Error> CreateComputeBindGroups(
     std::size_t idx_offset,
     std::size_t vert_offset,
     std::size_t mat_offset,
+    ::wgpu::Texture& material_texture_array,
+    ::wgpu::Sampler& material_texture_sampler,
     ComputeBindGroupLayouts& layouts,
     ::wgpu::Device& device) {
   /* Group 0 */
@@ -172,6 +204,7 @@ std::expected<ComputeBindGroups, Error> CreateComputeBindGroups(
     }())
   };
   if (auto e = global::error_stack.Pop()) return std::unexpected(*e);
+
   /* Group 1 */
   std::array<::wgpu::BindGroupEntry, 1> group1entries{
     [&] -> ::wgpu::BindGroupEntry {
@@ -194,16 +227,23 @@ std::expected<ComputeBindGroups, Error> CreateComputeBindGroups(
       return desc;
     }())
   };
+  if (auto e = global::error_stack.Pop()) return std::unexpected(*e);
+
   auto group2 = CreateComputeBindGroup2(tlas_storage,
                                         insts_offset,
                                         blas_idx_vert_storage,
                                         idx_offset,
                                         vert_offset,
                                         mat_offset,
+                                        material_texture_array,
+                                        material_texture_sampler,
                                         layouts,
                                         device);
   if (!group2) return std::unexpected(group2.error());
-  return ComputeBindGroups{ group0, group1, *group2 };
+  return ComputeBindGroups{ group0,
+                            group1,
+                            group2->bindgroup,
+                            group2->material_texture_array_view };
 }
 
 std::expected<void, Error> UpdateComputeBindGroup2(
@@ -214,6 +254,8 @@ std::expected<void, Error> UpdateComputeBindGroup2(
     std::size_t idx_offset,
     std::size_t vert_offset,
     std::size_t mat_offset,
+    ::wgpu::Texture& material_texture_array,
+    ::wgpu::Sampler& material_texture_sampler,
     ComputeBindGroupLayouts& layouts,
     ::wgpu::Device& device) {
   auto group2 = CreateComputeBindGroup2(tlas_storage,
@@ -222,10 +264,17 @@ std::expected<void, Error> UpdateComputeBindGroup2(
                                         idx_offset,
                                         vert_offset,
                                         mat_offset,
+                                        material_texture_array,
+                                        material_texture_sampler,
                                         layouts,
                                         device);
   if (!group2) return std::unexpected(group2.error());
-  bindgroups[2] = std::move(*group2);
+  if (bindgroups[2]) bindgroups[2].release();
+  if (bindgroups.material_texture_array_view)
+    bindgroups.material_texture_array_view.release();
+  bindgroups[2] = group2->bindgroup;
+  bindgroups.material_texture_array_view =
+      group2->material_texture_array_view;
   return {};
 }
 
@@ -245,6 +294,7 @@ std::expected<::wgpu::ComputePipeline, Error> CreateComputePipeline(
   ::wgpu::raii::ShaderModule comp_shader_module =
       device.createShaderModule(comp_shader_desc);
   if (auto e = global::error_stack.Pop()) return std::unexpected(*e);
+
   /* Pipeline Layout */
   ::wgpu::raii::PipelineLayout pipeline_layout{ device.createPipelineLayout(
       [&] -> ::wgpu::PipelineLayoutDescriptor {
@@ -255,6 +305,7 @@ std::expected<::wgpu::ComputePipeline, Error> CreateComputePipeline(
             ::wgpu::StringView{ "Crystal Graphics Pipeline Layout (Compute)" };
         return desc;
       }()) };
+
   /* Pipeline */
   ::wgpu::ComputePipeline pipeline{ device.createComputePipeline(
       [&] -> ::wgpu::ComputePipelineDescriptor {
@@ -311,16 +362,35 @@ std::expected<void, Error> EncodeComputePass(::wgpu::CommandEncoder& encoder,
   return {};
 }
 
-std::expected<::wgpu::BindGroup, Error> CreateComputeBindGroup2(
+std::expected<ComputeBindGroup2, Error> CreateComputeBindGroup2(
     ::wgpu::Buffer& tlas_storage,
     std::size_t tlas_inst_offset,
     ::wgpu::Buffer& blas_idx_vert_storage,
     std::size_t idx_offset,
     std::size_t vert_offset,
     std::size_t mat_offset,
+    ::wgpu::Texture& material_texture_array,
+    ::wgpu::Sampler& material_texture_sampler,
     ComputeBindGroupLayouts& layouts,
     ::wgpu::Device& device) {
-  std::array<::wgpu::BindGroupEntry, 6> group2entries{
+  ::wgpu::TextureView material_texture_array_view =
+      material_texture_array.createView([] -> ::wgpu::TextureViewDescriptor {
+        ::wgpu::TextureViewDescriptor desc{ ::wgpu::Default };
+        desc.label = ::wgpu::StringView{
+          "Crystal Graphics Material Texture Array View"
+        };
+        desc.format = ::wgpu::TextureFormat::RGBA8Unorm;
+        desc.dimension = ::wgpu::TextureViewDimension::_2DArray;
+        desc.baseMipLevel = 0;
+        desc.mipLevelCount = 1;
+        desc.baseArrayLayer = 0;
+        desc.arrayLayerCount = WGPU_ARRAY_LAYER_COUNT_UNDEFINED;
+        desc.aspect = ::wgpu::TextureAspect::All;
+        return desc;
+      }());
+  if (auto e = global::error_stack.Pop()) return std::unexpected(*e);
+
+  std::array<::wgpu::BindGroupEntry, 8> group2entries{
     /* TLAS Nodes */
     [&] -> ::wgpu::BindGroupEntry {
       ::wgpu::BindGroupEntry bvh{ ::wgpu::Default };
@@ -374,6 +444,20 @@ std::expected<::wgpu::BindGroup, Error> CreateComputeBindGroup2(
       materials.size = blas_idx_vert_storage.getSize() - mat_offset;
       return materials;
     }(),
+    /* Material Texture Array */
+    [&] -> ::wgpu::BindGroupEntry {
+      ::wgpu::BindGroupEntry texture{ ::wgpu::Default };
+      texture.binding = 6;
+      texture.textureView = material_texture_array_view;
+      return texture;
+    }(),
+    /* Material Texture Sampler */
+    [&] -> ::wgpu::BindGroupEntry {
+      ::wgpu::BindGroupEntry sampler{ ::wgpu::Default };
+      sampler.binding = 7;
+      sampler.sampler = material_texture_sampler;
+      return sampler;
+    }(),
   };
   ::wgpu::BindGroup group2{
     device.createBindGroup([&] -> ::wgpu::BindGroupDescriptor {
@@ -387,8 +471,11 @@ std::expected<::wgpu::BindGroup, Error> CreateComputeBindGroup2(
       return desc;
     }())
   };
-  if (auto e = global::error_stack.Pop()) return std::unexpected(*e);
-  return group2;
+  if (auto e = global::error_stack.Pop()) {
+    material_texture_array_view.release();
+    return std::unexpected(*e);
+  }
+  return ComputeBindGroup2{ group2, material_texture_array_view };
 }
 
 }  // namespace crystal::graphics::wgpu

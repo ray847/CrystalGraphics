@@ -10,6 +10,7 @@ struct SurfacePos {
     pos: Pos,
     norm: Vec,
     material_idx: u32,
+    uv: vec2f,
 };
 
 struct HitInfo {

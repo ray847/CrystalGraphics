@@ -1,11 +1,11 @@
 import package::pathtrace::{
     math::Ray,
     structural::HitInfo,
-    bvh::ray_hit,
-    lod::{LOD, reach_end, decr},
+    bvh::rayHit,
+    lod::{LOD, reachEnd, decr},
     radiance::{Radiance, radiate},
-    sample::{GeneratedRays, generateRays, MAX_GENERATED_COUNT},
-    reflect::reflect,
+    sample::{SampledRays, sampleRays, MAX_SAMPLE_COUNT},
+    collect::collect,
 };
 
 const MAX_TRACE_DEPTH: u32 = 8;
@@ -16,8 +16,8 @@ struct Stack {
     lod: LOD,
     /* Local */
     hit_info: HitInfo,
-    generated_rays: GeneratedRays,
-    generated_ray_radiance: array<Radiance, MAX_GENERATED_COUNT>,
+    sampled_rays: SampledRays,
+    sampled_ray_radiance: array<Radiance, MAX_SAMPLE_COUNT>,
     iter: i32,
     in_recurse: bool,
     /* Return */
@@ -35,23 +35,23 @@ fn trace(ray: Ray) -> Radiance {
         /* First Execution */
         if !stk[top].in_recurse {
 
-            stk[top].hit_info = ray_hit(stk[top].ray);
+            stk[top].hit_info = rayHit(stk[top].ray);
             if !stk[top].hit_info.travel_info.hit {
                 /* Return */
-                ret = environment_radiance(stk[top].ray.dir);
+                ret = environmentRadiance(stk[top].ray.dir);
                 stk[top] = Stack(); // clear stack frame
                 top--;
                 continue;
             }
 
-            if reach_end(stk[top].lod) || u32(top) == MAX_TRACE_DEPTH - 1 {
+            if reachEnd(stk[top].lod) || u32(top) == MAX_TRACE_DEPTH - 1 {
                 /* Return */
                 ret = radiate(stk[top].hit_info.surface_pos, stk[top].lod);
                 stk[top] = Stack(); // clear stack frame
                 top--;
                 continue;
             } else {
-                stk[top].generated_rays = generateRays(
+                stk[top].sampled_rays = sampleRays(
                     stk[top].ray.dir,
                     stk[top].hit_info.surface_pos,
                     stk[top].lod
@@ -62,13 +62,13 @@ fn trace(ray: Ray) -> Radiance {
         }
         /* Collect Return Value */
         else {
-            stk[top].generated_ray_radiance[stk[top].iter - 1] = ret;
+            stk[top].sampled_ray_radiance[stk[top].iter - 1] = ret;
         }
 
         /* Sample Loop */
-        if stk[top].iter < stk[top].generated_rays.count {
+        if stk[top].iter < stk[top].sampled_rays.count {
             /* Recursion Call */
-            stk[top + 1].ray = stk[top].generated_rays.rays[stk[top].iter];
+            stk[top + 1].ray = stk[top].sampled_rays.rays[stk[top].iter];
             stk[top + 1].lod = decr(stk[top].lod);
             stk[top].iter += 1;
             top++;
@@ -76,10 +76,10 @@ fn trace(ray: Ray) -> Radiance {
         } else {
             /* Return */
             /* Input radiance. */
-            ret = reflect(
+            ret = collect(
                 stk[top].ray.dir,
-                stk[top].generated_rays,
-                stk[top].generated_ray_radiance
+                stk[top].sampled_rays,
+                stk[top].sampled_ray_radiance
             );
             stk[top] = Stack(); // clear stack frame
             top--;
@@ -89,7 +89,7 @@ fn trace(ray: Ray) -> Radiance {
     return ret;
 }
 
-fn environment_radiance(dir: vec3f) -> Radiance {
+fn environmentRadiance(dir: vec3f) -> Radiance {
     let t = 0.5 * (dir.y + 1.0);
     return mix(Radiance(0.7, 0.8, 1.0), Radiance(0.05, 0.05, 0.06), 1.0 - t);
 }

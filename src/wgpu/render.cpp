@@ -119,10 +119,10 @@ std::expected<::wgpu::RenderPipeline, Error> CreateRenderPipeline(
   ::wgpu::RenderPipelineDescriptor render_pipeline_desc{ ::wgpu::Default };
   render_pipeline_desc.layout = *pipeline_layout;
   render_pipeline_desc.vertex.module = *vert_shader_module;
-  render_pipeline_desc.vertex.entryPoint = ::wgpu::StringView{ "vert_main" };
+  render_pipeline_desc.vertex.entryPoint = ::wgpu::StringView{ "vertMain" };
   ::wgpu::FragmentState fragment_state{ ::wgpu::Default };
   fragment_state.module = *frag_shader_module;
-  fragment_state.entryPoint = ::wgpu::StringView{ "frag_main" };
+  fragment_state.entryPoint = ::wgpu::StringView{ "fragMain" };
   ::wgpu::ColorTargetState color_target_state = ::wgpu::Default;
   color_target_state.format = surface_config.format;
   ::wgpu::BlendState blend_state{ ::wgpu::Default };

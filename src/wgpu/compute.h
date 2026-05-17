@@ -20,7 +20,7 @@ struct ComputeBindGroupLayouts {
    *
    * 0. Target Texture
    * 1. Camera
-   * 2. VBO, BVH
+   * 2. Scene Storage, Material Textures
    */
   std::array<::wgpu::BindGroupLayout, 3> layouts;
   ComputeBindGroupLayouts(::wgpu::BindGroupLayout layout0,
@@ -66,28 +66,37 @@ struct ComputeBindGroupLayouts {
 
 struct ComputeBindGroups {
   std::array<::wgpu::BindGroup, 3> bindgroups;
+  ::wgpu::TextureView material_texture_array_view;
   ComputeBindGroups(::wgpu::BindGroup group0,
                     ::wgpu::BindGroup group1,
-                    ::wgpu::BindGroup group2) :
-      bindgroups{ group0, group1, group2 } {
+                    ::wgpu::BindGroup group2,
+                    ::wgpu::TextureView material_texture_array_view) :
+      bindgroups{ group0, group1, group2 },
+      material_texture_array_view{ material_texture_array_view } {
   }
   ~ComputeBindGroups() {
     for (auto& bindgroup : bindgroups)
       if (bindgroup) bindgroup.release();
+    if (material_texture_array_view) material_texture_array_view.release();
   }
   ComputeBindGroups(const ComputeBindGroups&) = delete;
   ComputeBindGroups& operator=(const ComputeBindGroups&) = delete;
   ComputeBindGroups(ComputeBindGroups&& other) noexcept :
-      bindgroups{ other.bindgroups } {
+      bindgroups{ other.bindgroups },
+      material_texture_array_view{ other.material_texture_array_view } {
     other.bindgroups = { nullptr, nullptr, nullptr };
+    other.material_texture_array_view = nullptr;
   }
   ComputeBindGroups& operator=(ComputeBindGroups&& other) noexcept {
     if (this != &other) {
       for (auto& layout : bindgroups) {
         if (layout) layout.release();
       }
+      if (material_texture_array_view) material_texture_array_view.release();
       bindgroups = other.bindgroups;
+      material_texture_array_view = other.material_texture_array_view;
       other.bindgroups = { nullptr, nullptr, nullptr };
+      other.material_texture_array_view = nullptr;
     }
     return *this;
   }
@@ -121,6 +130,8 @@ std::expected<ComputeBindGroups, Error> CreateComputeBindGroups(
     std::size_t idx_offset,
     std::size_t vert_offset,
     std::size_t mat_offset,
+    ::wgpu::Texture& material_texture_array,
+    ::wgpu::Sampler& material_texture_sampler,
     ComputeBindGroupLayouts& layouts,
     ::wgpu::Device& device);
 
@@ -132,6 +143,8 @@ std::expected<void, Error> UpdateComputeBindGroup2(
     std::size_t idx_offset,
     std::size_t vert_offset,
     std::size_t mat_offset,
+    ::wgpu::Texture& material_texture_array,
+    ::wgpu::Sampler& material_texture_sampler,
     ComputeBindGroupLayouts& layouts,
     ::wgpu::Device& device);
 

@@ -10,6 +10,7 @@
 #include "CrystalGraphics/public.h"
 #include "CrystalGraphics/scene.h"
 #include "material.h"
+#include "texture.h"
 #include "vertex.h"
 
 namespace crystal::graphics {
@@ -41,6 +42,7 @@ struct Scene::Impl {
   VertexContainer vertices_;
   std::vector<uint32_t> indices_;
   std::vector<Material> materials_;
+  TextureContainer textures_;
   spatial::Space<SpaceDef> space_;
 };
 

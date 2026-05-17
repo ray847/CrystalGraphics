@@ -6,7 +6,6 @@
 #include "GLFW/glfw3.h"
 #include "global.h"
 
-
 namespace crystal::graphics::glfw {
 
 std::expected<Env, Error> CreateEnv() {
@@ -21,7 +20,7 @@ std::expected<Env, Error> CreateEnv() {
   glfwWindowHint(GLFW_DECORATED, GLFW_FALSE);
   glfwWindowHint(GLFW_RESIZABLE, GLFW_FALSE);
   auto window =
-      glfwCreateWindow(640, 480, "Crystal Graphics Window", nullptr, nullptr);
+      glfwCreateWindow(1920, 1080, "Crystal Graphics Window", nullptr, nullptr);
   if (auto error = global::error_stack.Pop()) return std::unexpected(*error);
   return Env{ window };
 }

@@ -14,7 +14,13 @@
 
 3. Path Tracing
   * Upload Material Data
-  * 
+  * Diffuse Reflection
+  * Specular Reflection
+  * Rough Reflection
+  * Conductor Reflection
+  * Specular Transmission (Refraction)
+  * Diffuse Transmission
+  * Rough Transmission
 
 4. Spectral
 
@@ -25,3 +31,5 @@
 2. Material Sorting
 
 3. Wide BVH Tree
+
+4. Material Preprocessing

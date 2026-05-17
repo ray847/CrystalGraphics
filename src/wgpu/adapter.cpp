@@ -19,7 +19,7 @@ std::expected<::wgpu::Adapter, Error> CreateAdapter(::wgpu::Instance& instance,
         ::wgpu::RequestAdapterOptions opts;
         opts.compatibleSurface = surface;
         opts.powerPreference = ::wgpu::PowerPreference::HighPerformance;
-        opts.backendType = ::wgpu::BackendType::Vulkan;
+        // opts.backendType = ::wgpu::BackendType::Vulkan;
         return opts;
       }());
   ::wgpu::AdapterInfo info{};

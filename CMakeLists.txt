@@ -13,6 +13,7 @@ add_subdirectory(lib/glfw)
 add_subdirectory(lib/WebGPU-distribution)
 add_subdirectory(lib/glfw3webgpu)
 add_subdirectory(lib/cgltf)
+add_subdirectory(lib/stb)
 
 # Internal Library
 add_library(CrystalGraphics)
@@ -24,6 +25,7 @@ target_sources(CrystalGraphics
     src/environment.cpp
     src/camera.cpp
     src/vertex.cpp
+    src/image_decode.cpp
     src/scene.cpp
     src/api.cpp
     src/view.cpp
@@ -68,6 +70,7 @@ target_link_libraries(CrystalGraphics
     glfw
     webgpu
     glfw3webgpu
+    stb_image
 )
 
 if (CMAKE_CURRENT_SOURCE_DIR STREQUAL CMAKE_SOURCE_DIR)

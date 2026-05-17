@@ -1,5 +1,5 @@
 import package::pathtrace::{
-    math::{Ray, seed_rng},
+    math::{Ray, seedRng},
     render::render
 };
 
@@ -23,9 +23,9 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
     if pixel.x >= dims.x || pixel.y >= dims.y {
         return;
     }
-    seed_rng(pixel.x + pixel.y * dims.x);
-    let camera_ray = camera_ray(coord);
-    let color: vec3f = render(camera_ray);
+    seedRng(pixel.x + pixel.y * dims.x);
+    let ray = cameraRay(coord);
+    let color: vec3f = render(ray);
     textureStore(
         target_texture,
         pixel,
@@ -36,7 +36,7 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
     );
 }
 
-fn camera_ray(coord: vec2f) -> Ray {
+fn cameraRay(coord: vec2f) -> Ray {
     let dx: vec3f = normalize(
         cross(
             vec3f(0, 0, 1),

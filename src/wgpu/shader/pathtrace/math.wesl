@@ -8,7 +8,7 @@ const EPSILON: f32 = 1e-12;
 const RAY_OFFSET: f32 = 1e-4;
 const MAX: f32 = 1e6;
 
-fn dir_inv(dir: vec3f) -> vec3f {
+fn dirInv(dir: vec3f) -> vec3f {
     // If any component is exactly 0.0, replace it with a microscopic 
     // epsilon so division results in Infinity without causing NaN.
     let is_zero = dir == vec3f(0.0);
@@ -16,8 +16,8 @@ fn dir_inv(dir: vec3f) -> vec3f {
     return 1.0 / safe_dir;
 }
 
-fn ray_intersect_aabb(ray: Ray, lb: vec3f, ub: vec3f) -> bool {
-    let inv_dir = dir_inv(ray.dir);
+fn rayIntersectAabb(ray: Ray, lb: vec3f, ub: vec3f) -> bool {
+    let inv_dir = dirInv(ray.dir);
 
     let t0 = (lb - ray.pos) * inv_dir;
     let t1 = (ub - ray.pos) * inv_dir;
@@ -40,18 +40,18 @@ fn makeTangentSpace(n: vec3f) -> mat3x3f {
 
 var<private> rng_state: u32;
 
-fn seed_rng(seed: u32) {
+fn seedRng(seed: u32) {
     rng_state = seed;
-    step_rng();
+    stepRng();
 }
 
-fn step_rng() {
+fn stepRng() {
     rng_state = rng_state * 747796405u + 2891336453u;
     var word: u32 = ((rng_state >> ((rng_state >> 28u) + 4u)) ^ rng_state) * 277803737u;
     rng_state = (word >> 22u) ^ word;
 }
 
-fn rand_float() -> f32 {
-    step_rng();
+fn randFloat() -> f32 {
+    stepRng();
     return f32(rng_state) / 4294967296.0;
 }

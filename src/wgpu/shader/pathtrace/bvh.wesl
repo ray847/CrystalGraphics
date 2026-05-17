@@ -1,4 +1,4 @@
-import package::pathtrace::math::{Ray, ray_intersect_aabb, EPSILON, MAX};
+import package::pathtrace::math::{Ray, rayIntersectAabb, EPSILON, MAX};
 import package::pathtrace::structural::{HitInfo, SurfacePos, TravelInfo};
 
 /* Types */
@@ -23,6 +23,7 @@ alias Index = vec3i;
 struct Vertex {
     position: vec3f,
     normal: vec3f,
+    tex_coord: vec2f,
 };
 
 /* Data Flow */
@@ -35,19 +36,26 @@ struct Vertex {
 struct BlasHitInfo {
     global_distance: f32,
     local_normal: vec3f,
+    local_uv: vec2f,
+}
+struct TriangleHit {
+    t: f32,
+    u: f32,
+    v: f32,
 }
 
-fn ray_hit(ray: Ray) -> HitInfo {
-    return ray_traverse_tlas(ray);
+fn rayHit(ray: Ray) -> HitInfo {
+    return rayTraverseTlas(ray);
 }
 
-fn ray_traverse_tlas(ray: Ray) -> HitInfo {
+fn rayTraverseTlas(ray: Ray) -> HitInfo {
     var stack: array<u32, 32>;
     var stack_top: i32 = 0;
     stack[0] = 0u;
 
     var dis: f32 = MAX;
     var local_normal: vec3f;
+    var local_uv: vec2f;
     var inv_trans: mat4x4f;
     var material_idx: u32;
 
@@ -59,7 +67,7 @@ fn ray_traverse_tlas(ray: Ray) -> HitInfo {
         let lb = node.lb;
         let ub = node.ub;
 
-        if ray_intersect_aabb(ray, lb, ub) {
+        if rayIntersectAabb(ray, lb, ub) {
             if node.child != 0u {
                 stack_top++; stack[stack_top] = node.child;
                 stack_top++; stack[stack_top] = node.child + 1u;
@@ -69,13 +77,14 @@ fn ray_traverse_tlas(ray: Ray) -> HitInfo {
                     (instance.inv_trans * vec4f(ray.pos, 1.0f)).xyz,
                     (instance.inv_trans * vec4f(ray.dir, 0.0f)).xyz,
                 );
-                let blas_hit_info = ray_traverse_blas(
+                let blas_hit_info = rayTraverseBlas(
                     local_ray,
                     instance.blas_root_idx,
                 );
                 if blas_hit_info.global_distance < dis {
                     dis = blas_hit_info.global_distance;
                     local_normal = blas_hit_info.local_normal;
+                    local_uv = blas_hit_info.local_uv;
                     inv_trans = instance.inv_trans;
                     material_idx = instance.material_idx;
                 }
@@ -83,7 +92,7 @@ fn ray_traverse_tlas(ray: Ray) -> HitInfo {
         }
     }
     if dis >= MAX {
-        return HitInfo(TravelInfo(false, MAX), SurfacePos(vec3f(), vec3f(), 0));
+        return HitInfo(TravelInfo(false, MAX), SurfacePos(vec3f(), vec3f(), 0, vec2f()));
     }
 
     return HitInfo(
@@ -95,16 +104,18 @@ fn ray_traverse_tlas(ray: Ray) -> HitInfo {
             ray.pos + dis * ray.dir,
             normalize((transpose(inv_trans) * vec4f(local_normal, 0.0f)).xyz),
             material_idx,
+            local_uv,
         )
     );
 }
-fn ray_traverse_blas(ray: Ray, root_idx: u32) -> BlasHitInfo {
+fn rayTraverseBlas(ray: Ray, root_idx: u32) -> BlasHitInfo {
     var stack: array<u32, 32>;
     var stack_top: i32 = 0;
     stack[0] = root_idx;
 
     var closest_t: f32 = MAX;
-    var normal: vec3f;
+    var normal: vec3f = vec3f();
+    var uv: vec2f = vec2f();
 
     while stack_top >= 0 {
         let node_idx = stack[stack_top];
@@ -112,7 +123,7 @@ fn ray_traverse_blas(ray: Ray, root_idx: u32) -> BlasHitInfo {
 
         let node = blas[node_idx];
 
-        if ray_intersect_aabb(ray, node.lb, node.ub) {
+        if rayIntersectAabb(ray, node.lb, node.ub) {
 
             if node.triangle_count == 0u {
                 // INTERIOR NODE
@@ -126,22 +137,28 @@ fn ray_traverse_blas(ray: Ray, root_idx: u32) -> BlasHitInfo {
                     let v1 = vertices[index[1]].position;
                     let v2 = vertices[index[2]].position;
 
-                    let t = ray_intersect_triangle(ray, v0, v1, v2);
+                    let hit = rayIntersectTriangle(ray, v0, v1, v2);
 
-                    if t > 0.0 && t < closest_t {
-                        closest_t = t;
-                        normal = normalize(vertices[index[0]].normal
-                            + vertices[index[1]].normal
-                            + vertices[index[2]].normal);
+                    if hit.t > 0.0 && hit.t < closest_t {
+                        closest_t = hit.t;
+                        let n0 = vertices[index[0]].normal;
+                        let n1 = vertices[index[1]].normal;
+                        let n2 = vertices[index[2]].normal;
+                        let uv0 = vertices[index[0]].tex_coord;
+                        let uv1 = vertices[index[1]].tex_coord;
+                        let uv2 = vertices[index[2]].tex_coord;
+                        let w0 = 1.0f - hit.u - hit.v;
+                        normal = normalize(w0 * n0 + hit.u * n1 + hit.v * n2);
+                        uv = w0 * uv0 + hit.u * uv1 + hit.v * uv2;
                     }
                 }
             }
         }
     }
-    return BlasHitInfo(closest_t, normal);
+    return BlasHitInfo(closest_t, normal, uv);
 }
 
-fn ray_intersect_triangle(ray: Ray, v0: vec3f, v1: vec3f, v2: vec3f) -> f32 {
+fn rayIntersectTriangle(ray: Ray, v0: vec3f, v1: vec3f, v2: vec3f) -> TriangleHit {
     let edge1 = v1 - v0;
     let edge2 = v2 - v0;
     let h = cross(ray.dir, edge2);
@@ -149,7 +166,7 @@ fn ray_intersect_triangle(ray: Ray, v0: vec3f, v1: vec3f, v2: vec3f) -> f32 {
 
     // If a is near zero, the ray is parallel to the triangle
     if a > -EPSILON && a < EPSILON {
-        return -1.0;
+        return TriangleHit(-1.0, 0.0, 0.0);
     }
 
     let f = 1.0 / a;
@@ -157,21 +174,21 @@ fn ray_intersect_triangle(ray: Ray, v0: vec3f, v1: vec3f, v2: vec3f) -> f32 {
     let u = f * dot(s, h);
 
     if u < 0.0 || u > 1.0 {
-        return -1.0;
+        return TriangleHit(-1.0, 0.0, 0.0);
     }
 
     let q = cross(s, edge1);
     let v = f * dot(ray.dir, q);
 
     if v < 0.0 || u + v > 1.0 {
-        return -1.0;
+        return TriangleHit(-1.0, 0.0, 0.0);
     }
 
     let t = f * dot(edge2, q);
 
     if t > EPSILON {
-        return t; // Hit!
+        return TriangleHit(t, u, v);
     }
 
-    return -1.0; // Line intersects, but behind the ray origin
+    return TriangleHit(-1.0, 0.0, 0.0); // Line intersects, but behind the ray origin
 }
