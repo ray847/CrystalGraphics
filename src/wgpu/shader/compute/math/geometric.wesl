@@ -1,22 +1,16 @@
-struct Ray {
-    pos: vec3f,
-    dir: vec3f,
-};
-/* Constant */
-const PI: f32 = 3.1415926535;
-const EPSILON: f32 = 1e-12;
-const RAY_OFFSET: f32 = 1e-4;
-const MAX: f32 = 1e6;
+import super::ray::Ray;
+
+const SAFE_DIRECTION_EPSILON: f32 = 1e-7;
 
 fn dirInv(dir: vec3f) -> vec3f {
     // If any component is exactly 0.0, replace it with a microscopic 
     // epsilon so division results in Infinity without causing NaN.
     let is_zero = dir == vec3f(0.0);
-    let safe_dir = select(dir, vec3f(1e-7), is_zero);
+    let safe_dir = select(dir, vec3f(SAFE_DIRECTION_EPSILON), is_zero);
     return 1.0 / safe_dir;
 }
 
-fn rayIntersectAabb(ray: Ray, lb: vec3f, ub: vec3f) -> bool {
+fn rayIntersectAABB(ray: Ray, lb: vec3f, ub: vec3f) -> bool {
     let inv_dir = dirInv(ray.dir);
 
     let t0 = (lb - ray.pos) * inv_dir;
@@ -36,22 +30,4 @@ fn makeTangentSpace(n: vec3f) -> mat3x3f {
     let tangent = normalize(cross(helper, n));
     let bitangent = cross(n, tangent);
     return mat3x3f(tangent, bitangent, n);
-}
-
-var<private> rng_state: u32;
-
-fn seedRng(seed: u32) {
-    rng_state = seed;
-    stepRng();
-}
-
-fn stepRng() {
-    rng_state = rng_state * 747796405u + 2891336453u;
-    var word: u32 = ((rng_state >> ((rng_state >> 28u) + 4u)) ^ rng_state) * 277803737u;
-    rng_state = (word >> 22u) ^ word;
-}
-
-fn randFloat() -> f32 {
-    stepRng();
-    return f32(rng_state) / 4294967296.0;
 }

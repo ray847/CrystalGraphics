@@ -5,10 +5,13 @@
 
 #include <cassert>
 #include <cstdint>
+#include <ranges>
 #include <vector>
 
 #include "CrystalGraphics/public.h"
 #include "CrystalGraphics/scene.h"
+#include "glm/ext/matrix_float4x4.hpp"
+#include "glm/ext/vector_float4.hpp"
 #include "material.h"
 #include "texture.h"
 #include "vertex.h"
@@ -26,9 +29,40 @@ struct Primitive {
 struct Scene::Impl {
   struct Trans : public crystal::spatial::TRSQuatTrans {
     using crystal::spatial::TRSQuatTrans::operator();
+    using CompleteTrans = crystal::spatial::AffineTrans<3, float>;
+    using Mat = glm::mat4;
 
-    crystal::spatial::AffineTrans<3, float> operator()(const Trans& t) const {
+    bool use_matrix = false;
+    Mat matrix = Mat(1.0f);
+
+    void SetMatrix(const Mat& mat) {
+      matrix = mat;
+      use_matrix = true;
+    }
+
+    Mat Matrix() const {
+      if (use_matrix) return matrix;
+      return crystal::spatial::TRSQuatTrans::Matrix();
+    }
+
+    Vec operator()(const Vec& v) const {
+      return Matrix() * glm::vec4{ v, 1.0f };
+    }
+
+    template <std::ranges::range VecView>
+    auto operator()(const VecView& vv) const {
+      auto mat = Matrix();
+      return vv | std::views::transform([mat](const Vec& v) -> Vec {
+               return mat * glm::vec4{ v, 1.0f };
+             });
+    }
+
+    CompleteTrans operator()(const Trans& t) const {
       return { Matrix() * t.Matrix() };
+    }
+
+    operator CompleteTrans() const {
+      return { Matrix() };
     }
 
     Primitive operator()(const Primitive& prim) const {

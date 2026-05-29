@@ -1,41 +1,36 @@
-import package::pathtrace::{
-    math::Ray,
-    structural::HitInfo,
-    bvh::rayHit,
-    lod::{LOD, reachEnd, decr},
-    radiance::{Radiance, radiate},
-    sample::{SampledRays, sampleRays, MAX_SAMPLE_COUNT},
-    collect::collect,
-};
+import package::compute::lod;
+import package::compute::math;
+import package::compute::physics;
+import package::compute::shading;
+import package::compute::structural;
 
 const MAX_TRACE_DEPTH: u32 = 8;
 
 struct Stack {
     /* Argument */
-    ray: Ray,
-    lod: LOD,
+    ray: math::Ray,
+    lod: lod::LOD,
     /* Local */
-    hit_info: HitInfo,
-    sampled_rays: SampledRays,
-    sampled_ray_radiance: array<Radiance, MAX_SAMPLE_COUNT>,
-    iter: i32,
+    hit_info: structural::HitInfo,
+    sampled_rays: shading::SampledRays,
+    iter: u32,
     in_recurse: bool,
     /* Return */
-    surface_radiance: Radiance,
+    surface_radiance: physics::Radiance,
 };
 
-fn trace(ray: Ray) -> Radiance {
-    var ret: Radiance;
+fn trace(ray: math::Ray) -> physics::Radiance {
+    var ret: physics::Radiance;
     var stk = array<Stack, MAX_TRACE_DEPTH>(); // zero initialized
     var top: i32 = 0;
     /* Write first argument. */
     stk[top].ray = ray;
-    stk[top].lod = LOD(0);
+    stk[top].lod = lod::LOD(0);
     while top >= 0 {
         /* First Execution */
         if !stk[top].in_recurse {
 
-            stk[top].hit_info = rayHit(stk[top].ray);
+            stk[top].hit_info = structural::rayHit(stk[top].ray);
             if !stk[top].hit_info.travel_info.hit {
                 /* Return */
                 ret = environmentRadiance(stk[top].ray.dir);
@@ -44,15 +39,16 @@ fn trace(ray: Ray) -> Radiance {
                 continue;
             }
 
-            if reachEnd(stk[top].lod) || u32(top) == MAX_TRACE_DEPTH - 1 {
+            if lod::reachEnd(stk[top].lod) || u32(top) == MAX_TRACE_DEPTH - 1 {
                 /* Return */
-                ret = radiate(stk[top].hit_info.surface_pos, stk[top].lod);
+                ret = physics::Radiance();
                 stk[top] = Stack(); // clear stack frame
                 top--;
                 continue;
             } else {
-                stk[top].sampled_rays = sampleRays(
-                    stk[top].ray.dir,
+                let curr_dir = -stk[top].ray.dir;
+                stk[top].sampled_rays = shading::sampleRays(
+                    curr_dir,
                     stk[top].hit_info.surface_pos,
                     stk[top].lod
                 );
@@ -62,24 +58,24 @@ fn trace(ray: Ray) -> Radiance {
         }
         /* Collect Return Value */
         else {
-            stk[top].sampled_ray_radiance[stk[top].iter - 1] = ret;
+            stk[top].sampled_rays.ray_radiance[stk[top].iter - 1] = ret;
         }
 
         /* Sample Loop */
         if stk[top].iter < stk[top].sampled_rays.count {
             /* Recursion Call */
             stk[top + 1].ray = stk[top].sampled_rays.rays[stk[top].iter];
-            stk[top + 1].lod = decr(stk[top].lod);
+            stk[top + 1].lod = lod::decr(stk[top].lod);
             stk[top].iter += 1;
             top++;
             continue;
         } else {
             /* Return */
             /* Input radiance. */
-            ret = collect(
-                stk[top].ray.dir,
-                stk[top].sampled_rays,
-                stk[top].sampled_ray_radiance
+            let curr_dir = -stk[top].ray.dir;
+            ret = shading::collect(
+                curr_dir,
+                stk[top].sampled_rays
             );
             stk[top] = Stack(); // clear stack frame
             top--;
@@ -89,7 +85,11 @@ fn trace(ray: Ray) -> Radiance {
     return ret;
 }
 
-fn environmentRadiance(dir: vec3f) -> Radiance {
+fn environmentRadiance(dir: vec3f) -> physics::Radiance {
     let t = 0.5 * (dir.y + 1.0);
-    return mix(Radiance(0.7, 0.8, 1.0), Radiance(0.05, 0.05, 0.06), 1.0 - t);
+    return mix(
+        physics::Radiance(0.7, 0.8, 1.0),
+        physics::Radiance(0.05, 0.05, 0.06),
+        1.0 - t
+    );
 }

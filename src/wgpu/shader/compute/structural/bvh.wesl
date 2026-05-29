@@ -1,5 +1,7 @@
-import package::pathtrace::math::{Ray, rayIntersectAabb, EPSILON, MAX};
-import package::pathtrace::structural::{HitInfo, SurfacePos, TravelInfo};
+import package::compute::math;
+import super::types::{HitInfo, SurfacePos, TravelInfo};
+
+const INTERSECTION_EPSILON: f32 = 1e-6;
 
 /* Types */
 struct TLASNode {
@@ -23,7 +25,8 @@ alias Index = vec3i;
 struct Vertex {
     position: vec3f,
     normal: vec3f,
-    tex_coord: vec2f,
+    tex_coord0: vec2f,
+    tex_coord1: vec2f,
 };
 
 /* Data Flow */
@@ -36,7 +39,9 @@ struct Vertex {
 struct BlasHitInfo {
     global_distance: f32,
     local_normal: vec3f,
-    local_uv: vec2f,
+    local_geometry_normal: vec3f,
+    local_uv0: vec2f,
+    local_uv1: vec2f,
 }
 struct TriangleHit {
     t: f32,
@@ -44,18 +49,20 @@ struct TriangleHit {
     v: f32,
 }
 
-fn rayHit(ray: Ray) -> HitInfo {
+fn rayHit(ray: math::Ray) -> HitInfo {
     return rayTraverseTlas(ray);
 }
 
-fn rayTraverseTlas(ray: Ray) -> HitInfo {
+fn rayTraverseTlas(ray: math::Ray) -> HitInfo {
     var stack: array<u32, 32>;
     var stack_top: i32 = 0;
     stack[0] = 0u;
 
-    var dis: f32 = MAX;
+    var dis: f32 = math::MAX;
     var local_normal: vec3f;
-    var local_uv: vec2f;
+    var local_geometry_normal: vec3f;
+    var local_uv0: vec2f;
+    var local_uv1: vec2f;
     var inv_trans: mat4x4f;
     var material_idx: u32;
 
@@ -67,13 +74,13 @@ fn rayTraverseTlas(ray: Ray) -> HitInfo {
         let lb = node.lb;
         let ub = node.ub;
 
-        if rayIntersectAabb(ray, lb, ub) {
+        if math::rayIntersectAABB(ray, lb, ub) {
             if node.child != 0u {
                 stack_top++; stack[stack_top] = node.child;
                 stack_top++; stack[stack_top] = node.child + 1u;
             } else {
                 let instance = instances[node.inst_idx];
-                let local_ray = Ray(
+                let local_ray = math::Ray(
                     (instance.inv_trans * vec4f(ray.pos, 1.0f)).xyz,
                     (instance.inv_trans * vec4f(ray.dir, 0.0f)).xyz,
                 );
@@ -84,16 +91,24 @@ fn rayTraverseTlas(ray: Ray) -> HitInfo {
                 if blas_hit_info.global_distance < dis {
                     dis = blas_hit_info.global_distance;
                     local_normal = blas_hit_info.local_normal;
-                    local_uv = blas_hit_info.local_uv;
+                    local_geometry_normal = blas_hit_info.local_geometry_normal;
+                    local_uv0 = blas_hit_info.local_uv0;
+                    local_uv1 = blas_hit_info.local_uv1;
                     inv_trans = instance.inv_trans;
                     material_idx = instance.material_idx;
                 }
             }
         }
     }
-    if dis >= MAX {
-        return HitInfo(TravelInfo(false, MAX), SurfacePos(vec3f(), vec3f(), 0, vec2f()));
+    if dis >= math::MAX {
+        return HitInfo(
+            TravelInfo(false, math::MAX),
+            SurfacePos(vec3f(), vec3f(), vec3f(), 0, array<vec2f, 2>(vec2f(), vec2f()))
+        );
     }
+
+    let world_geometry_normal = normalize((transpose(inv_trans) * vec4f(local_geometry_normal, 0.0f)).xyz);
+    let world_shading_normal = normalize((transpose(inv_trans) * vec4f(local_normal, 0.0f)).xyz);
 
     return HitInfo(
         TravelInfo(
@@ -102,20 +117,27 @@ fn rayTraverseTlas(ray: Ray) -> HitInfo {
         ),
         SurfacePos(
             ray.pos + dis * ray.dir,
-            normalize((transpose(inv_trans) * vec4f(local_normal, 0.0f)).xyz),
+            select(
+                -world_shading_normal,
+                world_shading_normal,
+                dot(world_shading_normal, world_geometry_normal) >= 0.0f,
+            ),
+            world_geometry_normal,
             material_idx,
-            local_uv,
+            array<vec2f, 2>(local_uv0, local_uv1),
         )
     );
 }
-fn rayTraverseBlas(ray: Ray, root_idx: u32) -> BlasHitInfo {
+fn rayTraverseBlas(ray: math::Ray, root_idx: u32) -> BlasHitInfo {
     var stack: array<u32, 32>;
     var stack_top: i32 = 0;
     stack[0] = root_idx;
 
-    var closest_t: f32 = MAX;
+    var closest_t: f32 = math::MAX;
     var normal: vec3f = vec3f();
-    var uv: vec2f = vec2f();
+    var geometry_normal: vec3f = vec3f();
+    var uv0: vec2f = vec2f();
+    var uv1: vec2f = vec2f();
 
     while stack_top >= 0 {
         let node_idx = stack[stack_top];
@@ -123,7 +145,7 @@ fn rayTraverseBlas(ray: Ray, root_idx: u32) -> BlasHitInfo {
 
         let node = blas[node_idx];
 
-        if rayIntersectAabb(ray, node.lb, node.ub) {
+        if math::rayIntersectAABB(ray, node.lb, node.ub) {
 
             if node.triangle_count == 0u {
                 // INTERIOR NODE
@@ -144,28 +166,33 @@ fn rayTraverseBlas(ray: Ray, root_idx: u32) -> BlasHitInfo {
                         let n0 = vertices[index[0]].normal;
                         let n1 = vertices[index[1]].normal;
                         let n2 = vertices[index[2]].normal;
-                        let uv0 = vertices[index[0]].tex_coord;
-                        let uv1 = vertices[index[1]].tex_coord;
-                        let uv2 = vertices[index[2]].tex_coord;
+                        let uv00 = vertices[index[0]].tex_coord0;
+                        let uv01 = vertices[index[1]].tex_coord0;
+                        let uv02 = vertices[index[2]].tex_coord0;
+                        let uv10 = vertices[index[0]].tex_coord1;
+                        let uv11 = vertices[index[1]].tex_coord1;
+                        let uv12 = vertices[index[2]].tex_coord1;
                         let w0 = 1.0f - hit.u - hit.v;
                         normal = normalize(w0 * n0 + hit.u * n1 + hit.v * n2);
-                        uv = w0 * uv0 + hit.u * uv1 + hit.v * uv2;
+                        geometry_normal = normalize(cross(v1 - v0, v2 - v0));
+                        uv0 = w0 * uv00 + hit.u * uv01 + hit.v * uv02;
+                        uv1 = w0 * uv10 + hit.u * uv11 + hit.v * uv12;
                     }
                 }
             }
         }
     }
-    return BlasHitInfo(closest_t, normal, uv);
+    return BlasHitInfo(closest_t, normal, geometry_normal, uv0, uv1);
 }
 
-fn rayIntersectTriangle(ray: Ray, v0: vec3f, v1: vec3f, v2: vec3f) -> TriangleHit {
+fn rayIntersectTriangle(ray: math::Ray, v0: vec3f, v1: vec3f, v2: vec3f) -> TriangleHit {
     let edge1 = v1 - v0;
     let edge2 = v2 - v0;
     let h = cross(ray.dir, edge2);
     let a = dot(edge1, h);
 
     // If a is near zero, the ray is parallel to the triangle
-    if a > -EPSILON && a < EPSILON {
+    if a > -INTERSECTION_EPSILON && a < INTERSECTION_EPSILON {
         return TriangleHit(-1.0, 0.0, 0.0);
     }
 
@@ -186,7 +213,7 @@ fn rayIntersectTriangle(ray: Ray, v0: vec3f, v1: vec3f, v2: vec3f) -> TriangleHi
 
     let t = f * dot(edge2, q);
 
-    if t > EPSILON {
+    if t > INTERSECTION_EPSILON {
         return TriangleHit(t, u, v);
     }
 

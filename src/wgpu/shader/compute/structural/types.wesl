@@ -1,5 +1,4 @@
-alias Pos = vec3f;
-alias Vec = vec3f;
+import package::compute::math;
 
 struct TravelInfo {
     hit: bool,
@@ -7,10 +6,11 @@ struct TravelInfo {
 };
 
 struct SurfacePos {
-    pos: Pos,
-    norm: Vec,
+    pos: math::Pos,
+    shading_norm: math::Vec,
+    geometry_norm: math::Vec,
     material_idx: u32,
-    uv: vec2f,
+    uvs: array<vec2f, 2>,
 };
 
 struct HitInfo {

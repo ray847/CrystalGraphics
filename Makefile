@@ -6,9 +6,12 @@ WESL = C:/Users/xiach/.cargo/bin/wesl.exe
 WESL_DIR = src/wgpu/shader
 OUTPUT_DIR = src/wgpu/shader
 
+# Recursive wildcard function
+rwildcard=$(foreach d,$(wildcard $(1:=/*)),$(call rwildcard,$d,$2) $(filter $(subst *,%,$2),$d))
+
 # Shader files
 WESL_FILES = $(wildcard $(WESL_DIR)/*.wesl)
-WESL_DEPS = $(WESL_FILES) $(wildcard $(WESL_DIR)/**/*.wesl)
+WESL_DEPS = $(call rwildcard,$(WESL_DIR),*.wesl)
 WGSL_FILES = $(patsubst $(WESL_DIR)/%.wesl, $(OUTPUT_DIR)/%.wgsl, $(WESL_FILES))
 
 # Default target

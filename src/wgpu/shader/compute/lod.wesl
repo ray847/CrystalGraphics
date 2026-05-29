@@ -1,9 +1,11 @@
+const MAX_DEPTH = 2;
+
 struct LOD {
     depth: i32,
 };
 
 fn reachEnd(lod: LOD) -> bool {
-    return lod.depth >= 4;
+    return lod.depth >= MAX_DEPTH;
 }
 
 fn decr(lod: LOD) -> LOD {

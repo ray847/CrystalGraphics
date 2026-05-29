@@ -7,6 +7,7 @@
 #include <cctype>
 #include <fstream>
 #include <filesystem>
+#include <glm/ext/matrix_float4x4.hpp>
 #include <glm/trigonometric.hpp>
 #include <limits>
 #include <string>
@@ -62,6 +63,20 @@ std::vector<std::byte> PercentDecodeBytes(std::string_view value) {
         static_cast<unsigned char>(value[i])));
   }
   return res;
+}
+
+glm::mat4 LoadNodeTransform(const cgltf_node& node) {
+  cgltf_float transform_values[16];
+  cgltf_node_transform_local(&node, transform_values);
+
+  glm::mat4 transform(1.0f);
+  for (std::size_t column = 0; column < 4; ++column) {
+    for (std::size_t row = 0; row < 4; ++row) {
+      transform[column][row] =
+          static_cast<float>(transform_values[column * 4 + row]);
+    }
+  }
+  return transform;
 }
 
 std::expected<std::vector<std::byte>, Error> DecodeBase64(
@@ -504,7 +519,16 @@ std::expected<Scene, Error> LoadScene(std::filesystem::path file) {
             cgltf_accessor_read_float(
                 accessor,
                 v,
-                &vertices[primitive_vertex_offset + v].tex_coord.x,
+                &vertices[primitive_vertex_offset + v].tex_coord0.x,
+                2);
+          }
+        } else if (attribute.type == cgltf_attribute_type_texcoord
+                   && attribute.index == 1) {
+          for (cgltf_size v = 0; v < accessor->count; ++v) {
+            cgltf_accessor_read_float(
+                accessor,
+                v,
+                &vertices[primitive_vertex_offset + v].tex_coord1.x,
                 2);
           }
         }
@@ -546,19 +570,7 @@ std::expected<Scene, Error> LoadScene(std::filesystem::path file) {
                           decltype(root_ss) subspace) -> void {
     /* Extract transformation. */
     Scene::Impl::Trans trans;
-    if (node->has_scale)
-      trans.scale = { node->scale[0], node->scale[1], node->scale[2] };
-    if (node->has_rotation)
-      trans.rotation = { node->rotation[3],
-                         node->rotation[0],
-                         node->rotation[1],
-                         node->rotation[2] };
-    if (node->has_translation)
-      trans.translate = { node->translation[0],
-                          node->translation[1],
-                          node->translation[2] };
-
-    assert(!node->has_matrix && "Cannot extract transformation from matrix.");
+    trans.SetMatrix(LoadNodeTransform(*node));
     subspace.Trans() = trans;
 
     if (node->mesh) {

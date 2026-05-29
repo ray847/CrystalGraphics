@@ -18,148 +18,118 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
     if pixel.x >= dims.x || pixel.y >= dims.y {
         return;
     }
-    package_pathtrace_math_seedRng(pixel.x + pixel.y * dims.x);
+    package_compute_math_rng_seedRng(pixel.x + pixel.y * dims.x);
     let ray = cameraRay(coord);
-    let color: vec3f = package_pathtrace_render_render(ray);
+    let color: vec3f = package_compute_render_render(ray);
     textureStore(target_texture, pixel, vec4f(color, 1f));
 }
 
-fn cameraRay(coord: vec2f) -> package_pathtrace_math_Ray {
+fn cameraRay(coord: vec2f) -> package_compute_math_ray_Ray {
     let dx: vec3f = normalize(cross(vec3f(0, 0, 1), camera.dir)) * camera.viewport.x;
     let dy: vec3f = normalize(cross(dx, camera.dir)) * camera.viewport.y;
-    return package_pathtrace_math_Ray(camera.pos, normalize(camera.dir + coord.x * dx + coord.y * dy));
+    return package_compute_math_ray_Ray(camera.pos, normalize(camera.dir + coord.x * dx + coord.y * dy));
 }
 
-struct package_pathtrace_math_Ray {
-    pos: vec3f,
-    dir: vec3f
+var<private> package_compute_math_rng__1rng_state: u32;
+
+fn package_compute_math_rng_seedRng(seed: u32) {
+    package_compute_math_rng__1rng_state = seed;
+    package_compute_math_rng_stepRng();
 }
 
-const package_pathtrace_math_PI: f32 = 3.1415926535;
-
-const package_pathtrace_math_EPSILON: f32 = 1e-12;
-
-const package_pathtrace_math__1RAY_OFFSET: f32 = 0.0001;
-
-const package_pathtrace_math_MAX: f32 = 1000000.0;
-
-fn package_pathtrace_math_dirInv(dir: vec3f) -> vec3f {
-    let is_zero = dir == vec3f(0.0);
-    let safe_dir = select(dir, vec3f(1e-7), is_zero);
-    return 1.0 / safe_dir;
+fn package_compute_math_rng_stepRng() {
+    package_compute_math_rng__1rng_state = package_compute_math_rng__1rng_state * 747796405u + 2891336453u;
+    var word: u32 = ((package_compute_math_rng__1rng_state >> ((package_compute_math_rng__1rng_state >> 28u) + 4u)) ^ package_compute_math_rng__1rng_state) * 277803737u;
+    package_compute_math_rng__1rng_state = (word >> 22u) ^ word;
 }
 
-fn package_pathtrace_math_rayIntersectAabb(ray: package_pathtrace_math_Ray, lb: vec3f, ub: vec3f) -> bool {
-    let inv_dir = package_pathtrace_math_dirInv(ray.dir);
-    let t0 = (lb - ray.pos) * inv_dir;
-    let t1 = (ub - ray.pos) * inv_dir;
-    let tmin = min(t0, t1);
-    let tmax = max(t0, t1);
-    let t_near = max(max(tmin.x, tmin.y), tmin.z);
-    let t_far = min(min(tmax.x, tmax.y), tmax.z);
-    return t_far >= t_near && t_far > 0.0;
+fn package_compute_math_rng_randFloat() -> f32 {
+    package_compute_math_rng_stepRng();
+    return f32(package_compute_math_rng__1rng_state) / 4294967296.0;
 }
 
-fn package_pathtrace_math_makeTangentSpace(n: vec3f) -> mat3x3f {
-    let helper = select(vec3f(1.0, 0.0, 0.0), vec3f(0.0, 1.0, 0.0), abs(n.x) > 0.9);
-    let tangent = normalize(cross(helper, n));
-    let bitangent = cross(n, tangent);
-    return mat3x3f(tangent, bitangent, n);
+struct package_compute_math_ray_Ray {
+    pos: package_compute_math_types_Vec,
+    dir: package_compute_math_types_Vec
 }
 
-var<private> package_pathtrace_math__1rng_state: u32;
+alias package_compute_math_types_Pos = vec3f;
 
-fn package_pathtrace_math_seedRng(seed: u32) {
-    package_pathtrace_math__1rng_state = seed;
-    package_pathtrace_math_stepRng();
-}
+alias package_compute_math_types_Vec = vec3f;
 
-fn package_pathtrace_math_stepRng() {
-    package_pathtrace_math__1rng_state = package_pathtrace_math__1rng_state * 747796405u + 2891336453u;
-    var word: u32 = ((package_pathtrace_math__1rng_state >> ((package_pathtrace_math__1rng_state >> 28u) + 4u)) ^ package_pathtrace_math__1rng_state) * 277803737u;
-    package_pathtrace_math__1rng_state = (word >> 22u) ^ word;
-}
-
-fn package_pathtrace_math_randFloat() -> f32 {
-    package_pathtrace_math_stepRng();
-    return f32(package_pathtrace_math__1rng_state) / 4294967296.0;
-}
-
-fn package_pathtrace_render_render(ray: package_pathtrace_math_Ray) -> package_pathtrace_luminance_Luminance {
-    const SAMPLES: i32 = 1;
-    var radiance = package_pathtrace_radiance_Radiance();
-    for (var i: i32; i < SAMPLES; i++) {
-        radiance += package_pathtrace_trace_trace(ray);
+fn package_compute_render_render(ray: package_compute_math_ray_Ray) -> package_compute_physics_luminance_Luminance {
+    const SAMPLES: u32 = 2;
+    var radiance = package_compute_physics_radiance_Radiance();
+    for (var i: u32; i < SAMPLES; i++) {
+        radiance += package_compute_trace_trace(ray);
     }
     radiance /= f32(SAMPLES);
-    return package_pathtrace_luminance_illuminate(radiance);
+    return package_compute_physics_luminance_illuminate(radiance);
 }
 
-alias package_pathtrace_luminance_Luminance = vec3f;
+alias package_compute_physics_luminance_Luminance = vec3f;
 
-fn package_pathtrace_luminance_illuminate(radiance: package_pathtrace_radiance_Radiance) -> package_pathtrace_luminance_Luminance {
-    return radiance;
+fn package_compute_physics_luminance_illuminate(radiance: package_compute_physics_radiance_Radiance) -> package_compute_physics_luminance_Luminance {
+    let mapped = vec3f(1f) - exp(-max(radiance, vec3f(0f)));
+    return package_compute_physics_luminance_Luminance(pow(mapped, vec3f(1f / 2.2f)));
 }
 
-alias package_pathtrace_radiance_Radiance = vec3f;
+alias package_compute_physics_radiance_Radiance = vec3f;
 
-fn package_pathtrace_radiance_radiate(surface_pos: package_pathtrace_structural_SurfacePos, lod: package_pathtrace_lod_LOD) -> package_pathtrace_radiance_Radiance {
-    return package_pathtrace_radiance_Radiance();
-}
+const package_compute_trace__2MAX_TRACE_DEPTH: u32 = 8;
 
-const package_pathtrace_trace__2MAX_TRACE_DEPTH: u32 = 8;
-
-struct package_pathtrace_trace_Stack {
-    ray: package_pathtrace_math_Ray,
-    lod: package_pathtrace_lod_LOD,
-    hit_info: package_pathtrace_structural_HitInfo,
-    sampled_rays: package_pathtrace_sample_SampledRays,
-    sampled_ray_radiance: array<package_pathtrace_radiance_Radiance, package_pathtrace_sample__2MAX_SAMPLE_COUNT>,
-    iter: i32,
+struct package_compute_trace_Stack {
+    ray: package_compute_math_ray_Ray,
+    lod: package_compute_lod_LOD,
+    hit_info: package_compute_structural_types_HitInfo,
+    sampled_rays: package_compute_shading_sample_SampledRays,
+    iter: u32,
     in_recurse: bool,
-    surface_radiance: package_pathtrace_radiance_Radiance
+    surface_radiance: package_compute_physics_radiance_Radiance
 }
 
-fn package_pathtrace_trace_trace(ray: package_pathtrace_math_Ray) -> package_pathtrace_radiance_Radiance {
-    var ret: package_pathtrace_radiance_Radiance;
-    var stk = array<package_pathtrace_trace_Stack, package_pathtrace_trace__2MAX_TRACE_DEPTH>();
+fn package_compute_trace_trace(ray: package_compute_math_ray_Ray) -> package_compute_physics_radiance_Radiance {
+    var ret: package_compute_physics_radiance_Radiance;
+    var stk = array<package_compute_trace_Stack, package_compute_trace__2MAX_TRACE_DEPTH>();
     var top: i32 = 0;
     stk[top].ray = ray;
-    stk[top].lod = package_pathtrace_lod_LOD(0);
+    stk[top].lod = package_compute_lod_LOD(0);
     while (top >= 0) {
         if !stk[top].in_recurse {
-            stk[top].hit_info = package_pathtrace_bvh_rayHit(stk[top].ray);
+            stk[top].hit_info = package_compute_structural_bvh_rayHit(stk[top].ray);
             if !stk[top].hit_info.travel_info.hit {
-                ret = package_pathtrace_trace_environmentRadiance(stk[top].ray.dir);
-                stk[top] = package_pathtrace_trace_Stack();
+                ret = package_compute_trace_environmentRadiance(stk[top].ray.dir);
+                stk[top] = package_compute_trace_Stack();
                 top--;
                 continue;
             }
-            if package_pathtrace_lod_reachEnd(stk[top].lod) || u32(top) == package_pathtrace_trace__2MAX_TRACE_DEPTH - 1 {
-                ret = package_pathtrace_radiance_radiate(stk[top].hit_info.surface_pos, stk[top].lod);
-                stk[top] = package_pathtrace_trace_Stack();
+            if package_compute_lod_reachEnd(stk[top].lod) || u32(top) == package_compute_trace__2MAX_TRACE_DEPTH - 1 {
+                ret = package_compute_physics_radiance_Radiance();
+                stk[top] = package_compute_trace_Stack();
                 top--;
                 continue;
             }
             else {
-                stk[top].sampled_rays = package_pathtrace_sample_sampleRays(stk[top].ray.dir, stk[top].hit_info.surface_pos, stk[top].lod);
+                let curr_dir = -stk[top].ray.dir;
+                stk[top].sampled_rays = package_compute_shading_sample_sampleRays(curr_dir, stk[top].hit_info.surface_pos, stk[top].lod);
                 stk[top].iter = 0;
                 stk[top].in_recurse = true;
             }
         }
         else {
-            stk[top].sampled_ray_radiance[stk[top].iter - 1] = ret;
+            stk[top].sampled_rays.ray_radiance[stk[top].iter - 1] = ret;
         }
         if stk[top].iter < stk[top].sampled_rays.count {
             stk[top + 1].ray = stk[top].sampled_rays.rays[stk[top].iter];
-            stk[top + 1].lod = package_pathtrace_lod_decr(stk[top].lod);
+            stk[top + 1].lod = package_compute_lod_decr(stk[top].lod);
             stk[top].iter += 1;
             top++;
             continue;
         }
         else {
-            ret = package_pathtrace_collect_collect(stk[top].ray.dir, stk[top].sampled_rays, stk[top].sampled_ray_radiance);
-            stk[top] = package_pathtrace_trace_Stack();
+            let curr_dir = -stk[top].ray.dir;
+            ret = package_compute_shading_collect_collect(curr_dir, stk[top].sampled_rays);
+            stk[top] = package_compute_trace_Stack();
             top--;
             continue;
         }
@@ -167,157 +137,281 @@ fn package_pathtrace_trace_trace(ray: package_pathtrace_math_Ray) -> package_pat
     return ret;
 }
 
-fn package_pathtrace_trace_environmentRadiance(dir: vec3f) -> package_pathtrace_radiance_Radiance {
+fn package_compute_trace_environmentRadiance(dir: vec3f) -> package_compute_physics_radiance_Radiance {
     let t = 0.5 * (dir.y + 1.0);
-    return mix(package_pathtrace_radiance_Radiance(0.7, 0.8, 1.0), package_pathtrace_radiance_Radiance(0.05, 0.05, 0.06), 1.0 - t);
+    return mix(package_compute_physics_radiance_Radiance(0.7, 0.8, 1.0), package_compute_physics_radiance_Radiance(0.05, 0.05, 0.06), 1.0 - t);
 }
 
-struct package_pathtrace_lod_LOD {
+const package_compute_lod__1MAX_DEPTH = 2;
+
+struct package_compute_lod_LOD {
     depth: i32
 }
 
-fn package_pathtrace_lod_reachEnd(lod: package_pathtrace_lod_LOD) -> bool {
-    return lod.depth >= 4;
+fn package_compute_lod_reachEnd(lod: package_compute_lod_LOD) -> bool {
+    return lod.depth >= package_compute_lod__1MAX_DEPTH;
 }
 
-fn package_pathtrace_lod_decr(lod: package_pathtrace_lod_LOD) -> package_pathtrace_lod_LOD {
-    let decr_lod = package_pathtrace_lod_LOD(lod.depth + 1);
+fn package_compute_lod_decr(lod: package_compute_lod_LOD) -> package_compute_lod_LOD {
+    let decr_lod = package_compute_lod_LOD(lod.depth + 1);
     return decr_lod;
 }
 
-fn package_pathtrace_lod_heuristic(lod: package_pathtrace_lod_LOD) -> f32 {
+fn package_compute_lod_heuristic(lod: package_compute_lod_LOD) -> f32 {
     return f32(4 - lod.depth) / 4.0;
 }
 
-alias package_pathtrace_structural_Pos = vec3f;
-
-alias package_pathtrace_structural_Vec = vec3f;
-
-struct package_pathtrace_structural_TravelInfo {
+struct package_compute_structural_types_TravelInfo {
     hit: bool,
     dist: f32
 }
 
-struct package_pathtrace_structural_SurfacePos {
-    pos: package_pathtrace_structural_Pos,
-    norm: package_pathtrace_structural_Vec,
+struct package_compute_structural_types_SurfacePos {
+    pos: package_compute_math_types_Pos,
+    shading_norm: package_compute_math_types_Vec,
+    geometry_norm: package_compute_math_types_Vec,
     material_idx: u32,
-    uv: vec2f
+    uvs: array<vec2f, 2>
 }
 
-struct package_pathtrace_structural_HitInfo {
-    travel_info: package_pathtrace_structural_TravelInfo,
-    surface_pos: package_pathtrace_structural_SurfacePos
+struct package_compute_structural_types_HitInfo {
+    travel_info: package_compute_structural_types_TravelInfo,
+    surface_pos: package_compute_structural_types_SurfacePos
 }
 
-const package_pathtrace_sample__2MAX_SAMPLE_COUNT: i32 = 5;
+const package_compute_shading_sample__2MAX_SAMPLE_COUNT: u32 = 6u;
 
-const package_pathtrace_sample__2MAX_LAMBERTIAN_COUNT: i32 = 4;
+const package_compute_shading_sample__2MAX_DIFFUSE_COUNT: u32 = 4u;
 
-const package_pathtrace_sample__2MAX_SPECULAR_COUNT: i32 = 1;
+const package_compute_shading_sample__3MAX_DIELECTRIC_ROUGH_COUNT: u32 = 4u;
 
-const_assert package_pathtrace_sample__2MAX_SAMPLE_COUNT >= package_pathtrace_sample__2MAX_LAMBERTIAN_COUNT + package_pathtrace_sample__2MAX_SPECULAR_COUNT;
+const package_compute_shading_sample__2MIN_MODEL_WEIGHT: f32 = 1e-6;
 
-struct package_pathtrace_sample_SampledRays {
-    count: i32,
-    rays: array<package_pathtrace_math_Ray, package_pathtrace_sample__2MAX_SAMPLE_COUNT>,
-    ray_coeff: array<vec3f, package_pathtrace_sample__2MAX_SAMPLE_COUNT>
+const package_compute_shading_sample__1RAY_OFFSET: f32 = 0.001;
+
+struct package_compute_shading_sample_SampledRays {
+    count: u32,
+    rays: array<package_compute_math_ray_Ray, package_compute_shading_sample__2MAX_SAMPLE_COUNT>,
+    ray_coeff: array<vec3f, package_compute_shading_sample__2MAX_SAMPLE_COUNT>,
+    ray_radiance: array<package_compute_physics_radiance_Radiance, package_compute_shading_sample__2MAX_SAMPLE_COUNT>
 }
 
-fn package_pathtrace_sample_sampleRays(out_dir: vec3f, surface_pos: package_pathtrace_structural_SurfacePos, lod: package_pathtrace_lod_LOD) -> package_pathtrace_sample_SampledRays {
-    var sample: package_pathtrace_sample_SampledRays = package_pathtrace_sample_SampledRays();
-    let material: package_pathtrace_material_Material = package_pathtrace_material_materials[surface_pos.material_idx];
-    sample = package_pathtrace_sample_sampleReflection(sample, out_dir, surface_pos, lod, material);
+struct package_compute_shading_sample_ModelHeuristics {
+    diffuse: f32,
+    dielectric_specular: f32,
+    dielectric_rough: f32
+}
+
+struct package_compute_shading_sample_ModelSampleCounts {
+    diffuse: u32,
+    dielectric_specular: u32,
+    dielectric_rough: u32
+}
+
+fn package_compute_shading_sample_sampleRays(curr_dir: vec3f, surface_pos: package_compute_structural_types_SurfacePos, lod: package_compute_lod_LOD) -> package_compute_shading_sample_SampledRays {
+    let material: package_compute_shading_material_Material = package_compute_shading_material_material(surface_pos.material_idx, surface_pos.uvs);
+    let heuristics = package_compute_shading_sample_modelHeuristics(material);
+    let counts = package_compute_shading_sample_modelSampleCounts(u32(package_compute_lod_heuristic(lod) * f32(package_compute_shading_sample__2MAX_SAMPLE_COUNT)), heuristics);
+    let sample = package_compute_shading_sample_sampleModels(curr_dir, surface_pos, material, counts);
     return sample;
 }
 
-fn package_pathtrace_sample_sampleReflection(sample: package_pathtrace_sample_SampledRays, out_dir: vec3f, surface_pos: package_pathtrace_structural_SurfacePos, lod: package_pathtrace_lod_LOD, material: package_pathtrace_material_Material) -> package_pathtrace_sample_SampledRays {
-    var new_sample = sample;
-    let diffuse_count: i32 = i32(4 * package_pathtrace_lod_heuristic(lod));
-    for (var i: i32 = new_sample.count; i < diffuse_count; i++) {
-        let dir = package_pathtrace_reflect_diffuse_diffuseDir(surface_pos, out_dir, material);
-        new_sample.rays[i] = package_pathtrace_math_Ray(surface_pos.pos + dir * package_pathtrace_math__1RAY_OFFSET, dir);
-        new_sample.ray_coeff[i] = package_pathtrace_reflect_diffuse_diffuseDist(surface_pos, new_sample.rays[i].dir, material) / f32(diffuse_count);
+fn package_compute_shading_sample_sampleModels(curr_dir: package_compute_math_types_Vec, surface_pos: package_compute_structural_types_SurfacePos, material: package_compute_shading_material_Material, counts: package_compute_shading_sample_ModelSampleCounts) -> package_compute_shading_sample_SampledRays {
+    var new_sample = package_compute_shading_sample_SampledRays();
+    let diffuse_weight: f32 = 1 - material.metallic;
+    let dielectric_reflection_weight: f32 = 1 - material.metallic;
+    for (var i: u32 = 0; i < counts.diffuse; i++) {
+        let diffuse_sample = package_compute_shading_model_diffuse_diffuseSample(surface_pos, curr_dir, material);
+        new_sample.rays[new_sample.count] = package_compute_shading_sample_spawnSurfaceRay(surface_pos, diffuse_sample.next_dir);
+        new_sample.ray_coeff[new_sample.count] = diffuse_weight * diffuse_sample.dist / f32(counts.diffuse);
+        new_sample.count += 1;
     }
-    new_sample.count += diffuse_count;
+    for (var i: u32 = 0; i < counts.dielectric_specular; i++) {
+        let dielectric_specular_sample = package_compute_shading_model__1dielectric_specular_dielectricSpecularSample(surface_pos, curr_dir, material);
+        new_sample.rays[new_sample.count] = package_compute_shading_sample_spawnSurfaceRay(surface_pos, dielectric_specular_sample.next_dir);
+        new_sample.ray_coeff[new_sample.count] = dielectric_reflection_weight * dielectric_specular_sample.dist;
+        new_sample.count += 1;
+    }
+    for (var i: u32 = 0; i < counts.dielectric_rough; i++) {
+        let dielectric_rough_sample = package_compute_shading_model__1dielectric_rough_dielectricRoughSample(surface_pos, curr_dir, material);
+        new_sample.rays[new_sample.count] = package_compute_shading_sample_spawnSurfaceRay(surface_pos, dielectric_rough_sample.next_dir);
+        new_sample.ray_coeff[new_sample.count] = dielectric_reflection_weight * dielectric_rough_sample.dist / f32(counts.dielectric_rough);
+        new_sample.count += 1;
+    }
     return new_sample;
 }
 
-struct package_pathtrace_bvh_TLASNode {
+fn package_compute_shading_sample_modelHeuristics(material: package_compute_shading_material_Material) -> package_compute_shading_sample_ModelHeuristics {
+    let diffuse_weight: f32 = 1f - material.metallic;
+    let dielectric_reflection_weight: f32 = 1f - material.metallic;
+    let diffuse_heuristic = select(0f, f32(package_compute_shading_sample__2MAX_DIFFUSE_COUNT), diffuse_weight > package_compute_shading_sample__2MIN_MODEL_WEIGHT);
+    let dielectric_specular_heuristic = select(0f, 1f, dielectric_reflection_weight > package_compute_shading_sample__2MIN_MODEL_WEIGHT && material.microfacet_roughness == 0f);
+    let dielectric_rough_heuristic = select(0f, f32(package_compute_shading_sample__3MAX_DIELECTRIC_ROUGH_COUNT), dielectric_reflection_weight > package_compute_shading_sample__2MIN_MODEL_WEIGHT && material.microfacet_roughness > 0f);
+    return package_compute_shading_sample_ModelHeuristics(diffuse_heuristic, dielectric_specular_heuristic, dielectric_rough_heuristic);
+}
+
+fn package_compute_shading_sample_modelSampleCounts(available_count: u32, heuristics: package_compute_shading_sample_ModelHeuristics) -> package_compute_shading_sample_ModelSampleCounts {
+    let diffuse_desired = package_compute_shading_sample_desiredSampleCount(heuristics.diffuse, package_compute_shading_sample__2MAX_DIFFUSE_COUNT);
+    let dielectric_specular_desired = package_compute_shading_sample_desiredSampleCount(heuristics.dielectric_specular, 1u);
+    let dielectric_rough_desired = package_compute_shading_sample_desiredSampleCount(heuristics.dielectric_rough, package_compute_shading_sample__3MAX_DIELECTRIC_ROUGH_COUNT);
+    let desired_count = diffuse_desired + dielectric_specular_desired + dielectric_rough_desired;
+    if desired_count <= available_count {
+        return package_compute_shading_sample_ModelSampleCounts(diffuse_desired, dielectric_specular_desired, dielectric_rough_desired);
+    }
+    var counts = package_compute_shading_sample_ModelSampleCounts();
+    var remaining_count = available_count;
+    if diffuse_desired > 0u && remaining_count > 0u {
+        counts.diffuse = 1u;
+        remaining_count -= 1u;
+    }
+    if dielectric_specular_desired > 0u && remaining_count > 0u {
+        counts.dielectric_specular = 1u;
+        remaining_count -= 1u;
+    }
+    if dielectric_rough_desired > 0u && remaining_count > 0u {
+        counts.dielectric_rough = 1u;
+        remaining_count -= 1u;
+    }
+    var diffuse_extra_cap = diffuse_desired - counts.diffuse;
+    var dielectric_specular_extra_cap = dielectric_specular_desired - counts.dielectric_specular;
+    var dielectric_rough_extra_cap = dielectric_rough_desired - counts.dielectric_rough;
+    let extra_heuristic = select(0f, heuristics.diffuse, diffuse_extra_cap > 0u) + select(0f, heuristics.dielectric_specular, dielectric_specular_extra_cap > 0u) + select(0f, heuristics.dielectric_rough, dielectric_rough_extra_cap > 0u);
+    if remaining_count > 0u && extra_heuristic > 0f {
+        let diffuse_share = f32(remaining_count) * heuristics.diffuse / extra_heuristic;
+        let dielectric_specular_share = f32(remaining_count) * heuristics.dielectric_specular / extra_heuristic;
+        let dielectric_rough_share = f32(remaining_count) * heuristics.dielectric_rough / extra_heuristic;
+        let diffuse_extra = min(diffuse_extra_cap, u32(diffuse_share));
+        let dielectric_specular_extra = min(dielectric_specular_extra_cap, u32(dielectric_specular_share));
+        let dielectric_rough_extra = min(dielectric_rough_extra_cap, u32(dielectric_rough_share));
+        counts.diffuse += diffuse_extra;
+        counts.dielectric_specular += dielectric_specular_extra;
+        counts.dielectric_rough += dielectric_rough_extra;
+        diffuse_extra_cap -= diffuse_extra;
+        dielectric_specular_extra_cap -= dielectric_specular_extra;
+        dielectric_rough_extra_cap -= dielectric_rough_extra;
+        remaining_count -= diffuse_extra + dielectric_specular_extra + dielectric_rough_extra;
+        var diffuse_remainder = select(-1f, diffuse_share - f32(diffuse_extra), diffuse_extra_cap > 0u);
+        var dielectric_specular_remainder = select(-1f, dielectric_specular_share - f32(dielectric_specular_extra), dielectric_specular_extra_cap > 0u);
+        var dielectric_rough_remainder = select(-1f, dielectric_rough_share - f32(dielectric_rough_extra), dielectric_rough_extra_cap > 0u);
+        while (remaining_count > 0u) {
+            if diffuse_remainder >= dielectric_specular_remainder && diffuse_remainder >= dielectric_rough_remainder && diffuse_extra_cap > 0u {
+                counts.diffuse += 1u;
+                diffuse_extra_cap -= 1u;
+                diffuse_remainder = -1f;
+            }
+            else if dielectric_specular_remainder >= dielectric_rough_remainder && dielectric_specular_extra_cap > 0u {
+                counts.dielectric_specular += 1u;
+                dielectric_specular_extra_cap -= 1u;
+                dielectric_specular_remainder = -1f;
+            }
+            else if dielectric_rough_extra_cap > 0u {
+                counts.dielectric_rough += 1u;
+                dielectric_rough_extra_cap -= 1u;
+                dielectric_rough_remainder = -1f;
+            }
+            else {
+                break;
+            }
+            remaining_count -= 1u;
+        }
+    }
+    return counts;
+}
+
+fn package_compute_shading_sample_desiredSampleCount(heuristic: f32, max_count: u32) -> u32 {
+    if heuristic <= 0f {
+        return 0u;
+    }
+    return min(max(1u, u32(ceil(heuristic))), max_count);
+}
+
+fn package_compute_shading_sample_spawnSurfaceRay(surface_pos: package_compute_structural_types_SurfacePos, next_dir: package_compute_math_types_Vec) -> package_compute_math_ray_Ray {
+    let offset_normal = select(-surface_pos.geometry_norm, surface_pos.geometry_norm, dot(next_dir, surface_pos.geometry_norm) > 0f);
+    return package_compute_math_ray_Ray(surface_pos.pos + offset_normal * package_compute_shading_sample__1RAY_OFFSET, next_dir);
+}
+
+const package_compute_structural_bvh__1INTERSECTION_EPSILON: f32 = 1e-6;
+
+struct package_compute_structural_bvh_TLASNode {
     lb: vec3f,
     child: u32,
     ub: vec3f,
     inst_idx: u32
 }
 
-struct package_pathtrace_bvh_Instance {
+struct package_compute_structural_bvh_Instance {
     inv_trans: mat4x4f,
     blas_root_idx: u32,
     material_idx: u32
 }
 
-struct package_pathtrace_bvh_BLASNode {
+struct package_compute_structural_bvh_BLASNode {
     lb: vec3f,
     child: u32,
     ub: vec3f,
     triangle_count: u32
 }
 
-alias package_pathtrace_bvh_Index = vec3i;
+alias package_compute_structural_bvh_Index = vec3i;
 
-struct package_pathtrace_bvh_Vertex {
+struct package_compute_structural_bvh_Vertex {
     position: vec3f,
     normal: vec3f,
-    tex_coord: vec2f
+    tex_coord0: vec2f,
+    tex_coord1: vec2f
 }
 
 @group(2) @binding(0)
-var<storage, read> package_pathtrace_bvh_tlas: array<package_pathtrace_bvh_TLASNode>;
+var<storage, read> package_compute_structural_bvh_tlas: array<package_compute_structural_bvh_TLASNode>;
 
 @group(2) @binding(1)
-var<storage, read> package_pathtrace_bvh_instances: array<package_pathtrace_bvh_Instance>;
+var<storage, read> package_compute_structural_bvh_instances: array<package_compute_structural_bvh_Instance>;
 
 @group(2) @binding(2)
-var<storage, read> package_pathtrace_bvh_blas: array<package_pathtrace_bvh_BLASNode>;
+var<storage, read> package_compute_structural_bvh_blas: array<package_compute_structural_bvh_BLASNode>;
 
 @group(2) @binding(3)
-var<storage, read> package_pathtrace_bvh_indices: array<package_pathtrace_bvh_Index>;
+var<storage, read> package_compute_structural_bvh_indices: array<package_compute_structural_bvh_Index>;
 
 @group(2) @binding(4)
-var<storage, read> package_pathtrace_bvh_vertices: array<package_pathtrace_bvh_Vertex>;
+var<storage, read> package_compute_structural_bvh_vertices: array<package_compute_structural_bvh_Vertex>;
 
-struct package_pathtrace_bvh_BlasHitInfo {
+struct package_compute_structural_bvh_BlasHitInfo {
     global_distance: f32,
     local_normal: vec3f,
-    local_uv: vec2f
+    local_geometry_normal: vec3f,
+    local_uv0: vec2f,
+    local_uv1: vec2f
 }
 
-struct package_pathtrace_bvh_TriangleHit {
+struct package_compute_structural_bvh_TriangleHit {
     t: f32,
     u: f32,
     v: f32
 }
 
-fn package_pathtrace_bvh_rayHit(ray: package_pathtrace_math_Ray) -> package_pathtrace_structural_HitInfo {
-    return package_pathtrace_bvh_rayTraverseTlas(ray);
+fn package_compute_structural_bvh_rayHit(ray: package_compute_math_ray_Ray) -> package_compute_structural_types_HitInfo {
+    return package_compute_structural_bvh_rayTraverseTlas(ray);
 }
 
-fn package_pathtrace_bvh_rayTraverseTlas(ray: package_pathtrace_math_Ray) -> package_pathtrace_structural_HitInfo {
+fn package_compute_structural_bvh_rayTraverseTlas(ray: package_compute_math_ray_Ray) -> package_compute_structural_types_HitInfo {
     var stack: array<u32, 32>;
     var stack_top: i32 = 0;
     stack[0] = 0u;
-    var dis: f32 = package_pathtrace_math_MAX;
+    var dis: f32 = package_compute_math_constant_MAX;
     var local_normal: vec3f;
-    var local_uv: vec2f;
+    var local_geometry_normal: vec3f;
+    var local_uv0: vec2f;
+    var local_uv1: vec2f;
     var inv_trans: mat4x4f;
     var material_idx: u32;
     while (stack_top >= 0) {
         let node_idx = stack[stack_top];
         stack_top--;
-        let node = package_pathtrace_bvh_tlas[node_idx];
+        let node = package_compute_structural_bvh_tlas[node_idx];
         let lb = node.lb;
         let ub = node.ub;
-        if package_pathtrace_math_rayIntersectAabb(ray, lb, ub) {
+        if package_compute_math_geometric_rayIntersectAABB(ray, lb, ub) {
             if node.child != 0u {
                 stack_top++;
                 stack[stack_top] = node.child;
@@ -325,37 +419,43 @@ fn package_pathtrace_bvh_rayTraverseTlas(ray: package_pathtrace_math_Ray) -> pac
                 stack[stack_top] = node.child + 1u;
             }
             else {
-                let instance = package_pathtrace_bvh_instances[node.inst_idx];
-                let local_ray = package_pathtrace_math_Ray((instance.inv_trans * vec4f(ray.pos, 1f)).xyz, (instance.inv_trans * vec4f(ray.dir, 0f)).xyz);
-                let blas_hit_info = package_pathtrace_bvh_rayTraverseBlas(local_ray, instance.blas_root_idx);
+                let instance = package_compute_structural_bvh_instances[node.inst_idx];
+                let local_ray = package_compute_math_ray_Ray((instance.inv_trans * vec4f(ray.pos, 1f)).xyz, (instance.inv_trans * vec4f(ray.dir, 0f)).xyz);
+                let blas_hit_info = package_compute_structural_bvh_rayTraverseBlas(local_ray, instance.blas_root_idx);
                 if blas_hit_info.global_distance < dis {
                     dis = blas_hit_info.global_distance;
                     local_normal = blas_hit_info.local_normal;
-                    local_uv = blas_hit_info.local_uv;
+                    local_geometry_normal = blas_hit_info.local_geometry_normal;
+                    local_uv0 = blas_hit_info.local_uv0;
+                    local_uv1 = blas_hit_info.local_uv1;
                     inv_trans = instance.inv_trans;
                     material_idx = instance.material_idx;
                 }
             }
         }
     }
-    if dis >= package_pathtrace_math_MAX {
-        return package_pathtrace_structural_HitInfo(package_pathtrace_structural_TravelInfo(false, package_pathtrace_math_MAX), package_pathtrace_structural_SurfacePos(vec3f(), vec3f(), 0, vec2f()));
+    if dis >= package_compute_math_constant_MAX {
+        return package_compute_structural_types_HitInfo(package_compute_structural_types_TravelInfo(false, package_compute_math_constant_MAX), package_compute_structural_types_SurfacePos(vec3f(), vec3f(), vec3f(), 0, array<vec2f, 2>(vec2f(), vec2f())));
     }
-    return package_pathtrace_structural_HitInfo(package_pathtrace_structural_TravelInfo(true, dis), package_pathtrace_structural_SurfacePos(ray.pos + dis * ray.dir, normalize((transpose(inv_trans) * vec4f(local_normal, 0f)).xyz), material_idx, local_uv));
+    let world_geometry_normal = normalize((transpose(inv_trans) * vec4f(local_geometry_normal, 0f)).xyz);
+    let world_shading_normal = normalize((transpose(inv_trans) * vec4f(local_normal, 0f)).xyz);
+    return package_compute_structural_types_HitInfo(package_compute_structural_types_TravelInfo(true, dis), package_compute_structural_types_SurfacePos(ray.pos + dis * ray.dir, select(-world_shading_normal, world_shading_normal, dot(world_shading_normal, world_geometry_normal) >= 0f), world_geometry_normal, material_idx, array<vec2f, 2>(local_uv0, local_uv1)));
 }
 
-fn package_pathtrace_bvh_rayTraverseBlas(ray: package_pathtrace_math_Ray, root_idx: u32) -> package_pathtrace_bvh_BlasHitInfo {
+fn package_compute_structural_bvh_rayTraverseBlas(ray: package_compute_math_ray_Ray, root_idx: u32) -> package_compute_structural_bvh_BlasHitInfo {
     var stack: array<u32, 32>;
     var stack_top: i32 = 0;
     stack[0] = root_idx;
-    var closest_t: f32 = package_pathtrace_math_MAX;
+    var closest_t: f32 = package_compute_math_constant_MAX;
     var normal: vec3f = vec3f();
-    var uv: vec2f = vec2f();
+    var geometry_normal: vec3f = vec3f();
+    var uv0: vec2f = vec2f();
+    var uv1: vec2f = vec2f();
     while (stack_top >= 0) {
         let node_idx = stack[stack_top];
         stack_top--;
-        let node = package_pathtrace_bvh_blas[node_idx];
-        if package_pathtrace_math_rayIntersectAabb(ray, node.lb, node.ub) {
+        let node = package_compute_structural_bvh_blas[node_idx];
+        if package_compute_math_geometric_rayIntersectAABB(ray, node.lb, node.ub) {
             if node.triangle_count == 0u {
                 stack_top++;
                 stack[stack_top] = node.child;
@@ -365,72 +465,118 @@ fn package_pathtrace_bvh_rayTraverseBlas(ray: package_pathtrace_math_Ray, root_i
             else {
                 let index_offset = node.child;
                 for (var i = 0u; i < node.triangle_count; i++) {
-                    let index = package_pathtrace_bvh_indices[index_offset + i];
-                    let v0 = package_pathtrace_bvh_vertices[index[0]].position;
-                    let v1 = package_pathtrace_bvh_vertices[index[1]].position;
-                    let v2 = package_pathtrace_bvh_vertices[index[2]].position;
-                    let hit = package_pathtrace_bvh_rayIntersectTriangle(ray, v0, v1, v2);
+                    let index = package_compute_structural_bvh_indices[index_offset + i];
+                    let v0 = package_compute_structural_bvh_vertices[index[0]].position;
+                    let v1 = package_compute_structural_bvh_vertices[index[1]].position;
+                    let v2 = package_compute_structural_bvh_vertices[index[2]].position;
+                    let hit = package_compute_structural_bvh_rayIntersectTriangle(ray, v0, v1, v2);
                     if hit.t > 0.0 && hit.t < closest_t {
                         closest_t = hit.t;
-                        let n0 = package_pathtrace_bvh_vertices[index[0]].normal;
-                        let n1 = package_pathtrace_bvh_vertices[index[1]].normal;
-                        let n2 = package_pathtrace_bvh_vertices[index[2]].normal;
-                        let uv0 = package_pathtrace_bvh_vertices[index[0]].tex_coord;
-                        let uv1 = package_pathtrace_bvh_vertices[index[1]].tex_coord;
-                        let uv2 = package_pathtrace_bvh_vertices[index[2]].tex_coord;
+                        let n0 = package_compute_structural_bvh_vertices[index[0]].normal;
+                        let n1 = package_compute_structural_bvh_vertices[index[1]].normal;
+                        let n2 = package_compute_structural_bvh_vertices[index[2]].normal;
+                        let uv00 = package_compute_structural_bvh_vertices[index[0]].tex_coord0;
+                        let uv01 = package_compute_structural_bvh_vertices[index[1]].tex_coord0;
+                        let uv02 = package_compute_structural_bvh_vertices[index[2]].tex_coord0;
+                        let uv10 = package_compute_structural_bvh_vertices[index[0]].tex_coord1;
+                        let uv11 = package_compute_structural_bvh_vertices[index[1]].tex_coord1;
+                        let uv12 = package_compute_structural_bvh_vertices[index[2]].tex_coord1;
                         let w0 = 1f - hit.u - hit.v;
                         normal = normalize(w0 * n0 + hit.u * n1 + hit.v * n2);
-                        uv = w0 * uv0 + hit.u * uv1 + hit.v * uv2;
+                        geometry_normal = normalize(cross(v1 - v0, v2 - v0));
+                        uv0 = w0 * uv00 + hit.u * uv01 + hit.v * uv02;
+                        uv1 = w0 * uv10 + hit.u * uv11 + hit.v * uv12;
                     }
                 }
             }
         }
     }
-    return package_pathtrace_bvh_BlasHitInfo(closest_t, normal, uv);
+    return package_compute_structural_bvh_BlasHitInfo(closest_t, normal, geometry_normal, uv0, uv1);
 }
 
-fn package_pathtrace_bvh_rayIntersectTriangle(ray: package_pathtrace_math_Ray, v0: vec3f, v1: vec3f, v2: vec3f) -> package_pathtrace_bvh_TriangleHit {
+fn package_compute_structural_bvh_rayIntersectTriangle(ray: package_compute_math_ray_Ray, v0: vec3f, v1: vec3f, v2: vec3f) -> package_compute_structural_bvh_TriangleHit {
     let edge1 = v1 - v0;
     let edge2 = v2 - v0;
     let h = cross(ray.dir, edge2);
     let a = dot(edge1, h);
-    if a > -package_pathtrace_math_EPSILON && a < package_pathtrace_math_EPSILON {
-        return package_pathtrace_bvh_TriangleHit(-1.0, 0.0, 0.0);
+    if a > -package_compute_structural_bvh__1INTERSECTION_EPSILON && a < package_compute_structural_bvh__1INTERSECTION_EPSILON {
+        return package_compute_structural_bvh_TriangleHit(-1.0, 0.0, 0.0);
     }
     let f = 1.0 / a;
     let s = ray.pos - v0;
     let u = f * dot(s, h);
     if u < 0.0 || u > 1.0 {
-        return package_pathtrace_bvh_TriangleHit(-1.0, 0.0, 0.0);
+        return package_compute_structural_bvh_TriangleHit(-1.0, 0.0, 0.0);
     }
     let q = cross(s, edge1);
     let v = f * dot(ray.dir, q);
     if v < 0.0 || u + v > 1.0 {
-        return package_pathtrace_bvh_TriangleHit(-1.0, 0.0, 0.0);
+        return package_compute_structural_bvh_TriangleHit(-1.0, 0.0, 0.0);
     }
     let t = f * dot(edge2, q);
-    if t > package_pathtrace_math_EPSILON {
-        return package_pathtrace_bvh_TriangleHit(t, u, v);
+    if t > package_compute_structural_bvh__1INTERSECTION_EPSILON {
+        return package_compute_structural_bvh_TriangleHit(t, u, v);
     }
-    return package_pathtrace_bvh_TriangleHit(-1.0, 0.0, 0.0);
+    return package_compute_structural_bvh_TriangleHit(-1.0, 0.0, 0.0);
 }
 
-struct package_pathtrace_material_MaterialTextureInfo {
+const package_compute_math_constant_PI: f32 = 3.1415926535;
+
+const package_compute_math_constant_MAX: f32 = 1000000.0;
+
+const package_compute_math_geometric__2SAFE_DIRECTION_EPSILON: f32 = 1e-7;
+
+fn package_compute_math_geometric_dirInv(dir: vec3f) -> vec3f {
+    let is_zero = dir == vec3f(0.0);
+    let safe_dir = select(dir, vec3f(package_compute_math_geometric__2SAFE_DIRECTION_EPSILON), is_zero);
+    return 1.0 / safe_dir;
+}
+
+fn package_compute_math_geometric_rayIntersectAABB(ray: package_compute_math_ray_Ray, lb: vec3f, ub: vec3f) -> bool {
+    let inv_dir = package_compute_math_geometric_dirInv(ray.dir);
+    let t0 = (lb - ray.pos) * inv_dir;
+    let t1 = (ub - ray.pos) * inv_dir;
+    let tmin = min(t0, t1);
+    let tmax = max(t0, t1);
+    let t_near = max(max(tmin.x, tmin.y), tmin.z);
+    let t_far = min(min(tmax.x, tmax.y), tmax.z);
+    return t_far >= t_near && t_far > 0.0;
+}
+
+fn package_compute_math_geometric_makeTangentSpace(n: vec3f) -> mat3x3f {
+    let helper = select(vec3f(1.0, 0.0, 0.0), vec3f(0.0, 1.0, 0.0), abs(n.x) > 0.9);
+    let tangent = normalize(cross(helper, n));
+    let bitangent = cross(n, tangent);
+    return mat3x3f(tangent, bitangent, n);
+}
+
+fn package_compute_shading_material_material(material_idx: u32, uvs: array<vec2f, 2>) -> package_compute_shading_material_Material {
+    return package_compute_shading_material_decode(package_compute_shading_material_materials[material_idx], uvs);
+}
+
+fn package_compute_shading_material_decode(packed_material: package_compute_shading_material_PackedMaterial, uvs: array<vec2f, 2>) -> package_compute_shading_material_Material {
+    let base_color = package_compute_shading_material_baseColor(packed_material, uvs);
+    let roughness = package_compute_shading_material_roughness(packed_material, uvs);
+    let metallic = package_compute_shading_material_metallic(packed_material, uvs);
+    let ior = packed_material.ior;
+    return package_compute_shading_material_Material(metallic, (1 - metallic) * base_color, roughness * roughness, ior);
+}
+
+struct package_compute_shading_material_Material {
+    metallic: f32,
+    diffuse_reflectance: vec4f,
+    microfacet_roughness: f32,
+    ior: f32
+}
+
+struct package_compute_shading_material_MaterialTextureInfo {
     index: i32,
     tex_coord: u32,
     scale: f32,
     strength: f32
 }
 
-fn package_pathtrace_material_baseColor(material: package_pathtrace_material_Material, uv: vec2f) -> vec4f {
-    var color = material.base_color_factor;
-    if material.base_color_texture.index >= 0 {
-        color *= textureSampleLevel(package_pathtrace_material__1material_textures, package_pathtrace_material__2material_texture_sampler, uv, material.base_color_texture.index, 0f);
-    }
-    return color;
-}
-
-struct package_pathtrace_material_Material {
+struct package_compute_shading_material_PackedMaterial {
     base_color_factor: vec4f,
     emissive_factor: vec3f,
     emissive_strength: f32,
@@ -460,59 +606,199 @@ struct package_pathtrace_material_Material {
     _padding0: u32,
     _padding1: u32,
     _padding2: u32,
-    base_color_texture: package_pathtrace_material_MaterialTextureInfo,
-    metallic_roughness_texture: package_pathtrace_material_MaterialTextureInfo,
-    normal_texture: package_pathtrace_material_MaterialTextureInfo,
-    occlusion_texture: package_pathtrace_material_MaterialTextureInfo,
-    emissive_texture: package_pathtrace_material_MaterialTextureInfo,
-    anisotropy_texture: package_pathtrace_material_MaterialTextureInfo,
-    clearcoat_texture: package_pathtrace_material_MaterialTextureInfo,
-    clearcoat_roughness_texture: package_pathtrace_material_MaterialTextureInfo,
-    clearcoat_normal_texture: package_pathtrace_material_MaterialTextureInfo,
-    iridescence_texture: package_pathtrace_material_MaterialTextureInfo,
-    iridescence_thickness_texture: package_pathtrace_material_MaterialTextureInfo,
-    sheen_color_texture: package_pathtrace_material_MaterialTextureInfo,
-    sheen_roughness_texture: package_pathtrace_material_MaterialTextureInfo,
-    specular_texture: package_pathtrace_material_MaterialTextureInfo,
-    specular_color_texture: package_pathtrace_material_MaterialTextureInfo,
-    transmission_texture: package_pathtrace_material_MaterialTextureInfo,
-    thickness_texture: package_pathtrace_material_MaterialTextureInfo
+    base_color_texture: package_compute_shading_material_MaterialTextureInfo,
+    metallic_roughness_texture: package_compute_shading_material_MaterialTextureInfo,
+    normal_texture: package_compute_shading_material_MaterialTextureInfo,
+    occlusion_texture: package_compute_shading_material_MaterialTextureInfo,
+    emissive_texture: package_compute_shading_material_MaterialTextureInfo,
+    anisotropy_texture: package_compute_shading_material_MaterialTextureInfo,
+    clearcoat_texture: package_compute_shading_material_MaterialTextureInfo,
+    clearcoat_roughness_texture: package_compute_shading_material_MaterialTextureInfo,
+    clearcoat_normal_texture: package_compute_shading_material_MaterialTextureInfo,
+    iridescence_texture: package_compute_shading_material_MaterialTextureInfo,
+    iridescence_thickness_texture: package_compute_shading_material_MaterialTextureInfo,
+    sheen_color_texture: package_compute_shading_material_MaterialTextureInfo,
+    sheen_roughness_texture: package_compute_shading_material_MaterialTextureInfo,
+    specular_texture: package_compute_shading_material_MaterialTextureInfo,
+    specular_color_texture: package_compute_shading_material_MaterialTextureInfo,
+    transmission_texture: package_compute_shading_material_MaterialTextureInfo,
+    thickness_texture: package_compute_shading_material_MaterialTextureInfo
 }
 
 @group(2) @binding(5)
-var<storage, read> package_pathtrace_material_materials: array<package_pathtrace_material_Material>;
+var<storage, read> package_compute_shading_material_materials: array<package_compute_shading_material_PackedMaterial>;
 
 @group(2) @binding(6)
-var package_pathtrace_material__1material_textures: texture_2d_array<f32>;
+var package_compute_shading_material__1material_textures: texture_2d_array<f32>;
 
 @group(2) @binding(7)
-var package_pathtrace_material__2material_texture_sampler: sampler;
+var package_compute_shading_material__2material_texture_sampler: sampler;
 
-fn package_pathtrace_reflect_diffuse_diffuseDir(surface_pos: package_pathtrace_structural_SurfacePos, out_dir: vec3f, material: package_pathtrace_material_Material) -> vec3f {
-    let in_dir = package_pathtrace_math_makeTangentSpace(surface_pos.norm) * package_pathtrace_reflect_diffuse_cosineWeightedSample();
-    return in_dir;
+fn package_compute_shading_material_textureUv(uvs: array<vec2f, 2>, tex_coord: u32) -> vec2f {
+    if tex_coord == 1u {
+        return uvs[1];
+    }
+    return uvs[0];
 }
 
-fn package_pathtrace_reflect_diffuse_cosineWeightedSample() -> vec3f {
-    let r = sqrt(package_pathtrace_math_randFloat());
-    let angle = 2 * package_pathtrace_math_PI * package_pathtrace_math_randFloat();
-    let dir = vec3f(r * cos(angle), r * sin(angle), sqrt(max(0f, 1 - r * r)));
-    return dir;
+fn package_compute_shading_material_baseColor(material: package_compute_shading_material_PackedMaterial, uvs: array<vec2f, 2>) -> vec4f {
+    var color = material.base_color_factor;
+    if material.base_color_texture.index >= 0 {
+        color *= textureSampleLevel(package_compute_shading_material__1material_textures, package_compute_shading_material__2material_texture_sampler, package_compute_shading_material_textureUv(uvs, material.base_color_texture.tex_coord), material.base_color_texture.index, 0f);
+    }
+    return color;
 }
 
-fn package_pathtrace_reflect_diffuse_diffuseDist(surface_pos: package_pathtrace_structural_SurfacePos, in_dir: vec3f, material: package_pathtrace_material_Material) -> vec3f {
-    let projection_factor = dot(in_dir, surface_pos.norm);
-    return package_pathtrace_reflect_diffuse_lambertianDist(material, surface_pos) * projection_factor;
+fn package_compute_shading_material_roughness(material: package_compute_shading_material_PackedMaterial, uvs: array<vec2f, 2>) -> f32 {
+    var roughness = material.roughness_factor;
+    if material.metallic_roughness_texture.index >= 0 {
+        roughness *= textureSampleLevel(package_compute_shading_material__1material_textures, package_compute_shading_material__2material_texture_sampler, package_compute_shading_material_textureUv(uvs, material.metallic_roughness_texture.tex_coord), material.metallic_roughness_texture.index, 0f)[1];
+    }
+    return clamp(roughness, 0f, 1f);
 }
 
-fn package_pathtrace_reflect_diffuse_lambertianDist(material: package_pathtrace_material_Material, surface_pos: package_pathtrace_structural_SurfacePos) -> vec3f {
-    return package_pathtrace_material_baseColor(material, surface_pos.uv).rgb;
+fn package_compute_shading_material_metallic(material: package_compute_shading_material_PackedMaterial, uvs: array<vec2f, 2>) -> f32 {
+    var metallic = material.metallic_factor;
+    if material.metallic_roughness_texture.index >= 0 {
+        metallic *= textureSampleLevel(package_compute_shading_material__1material_textures, package_compute_shading_material__2material_texture_sampler, package_compute_shading_material_textureUv(uvs, material.metallic_roughness_texture.tex_coord), material.metallic_roughness_texture.index, 0f)[2];
+    }
+    return clamp(metallic, 0f, 1f);
 }
 
-fn package_pathtrace_collect_collect(dir: vec3f, sampled_rays: package_pathtrace_sample_SampledRays, ray_radiance: array<package_pathtrace_radiance_Radiance, package_pathtrace_sample__2MAX_SAMPLE_COUNT>) -> package_pathtrace_radiance_Radiance {
-    var radiance = package_pathtrace_radiance_Radiance();
-    for (var i: i32; i < sampled_rays.count; i++) {
-        radiance += ray_radiance[i] * sampled_rays.ray_coeff[i];
+fn package_compute_shading_model_diffuse_diffuseSample(surface_pos: package_compute_structural_types_SurfacePos, curr_dir: package_compute_math_types_Vec, material: package_compute_shading_material_Material) -> package_compute_shading__1model_sample_ModelSample {
+    return package_compute_shading__1model_sample_ModelSample(package_compute_shading_model_diffuse_diffuseDir(surface_pos), package_compute_shading_model_diffuse_diffuseDist(surface_pos, curr_dir, material));
+}
+
+fn package_compute_shading_model_diffuse_diffuseDir(surface_pos: package_compute_structural_types_SurfacePos) -> vec3f {
+    let next_dir = package_compute_math_geometric_makeTangentSpace(surface_pos.shading_norm) * package_compute_shading_model_diffuse_cosineWeightedSample();
+    return next_dir;
+}
+
+fn package_compute_shading_model_diffuse_cosineWeightedSample() -> package_compute_math_types_Vec {
+    let r = sqrt(package_compute_math_rng_randFloat());
+    let angle = 2 * package_compute_math_constant_PI * package_compute_math_rng_randFloat();
+    let next_dir = package_compute_math_types_Vec(r * cos(angle), r * sin(angle), sqrt(max(0f, 1 - r * r)));
+    return next_dir;
+}
+
+fn package_compute_shading_model_diffuse_diffuseDist(surface_pos: package_compute_structural_types_SurfacePos, curr_dir: package_compute_math_types_Vec, material: package_compute_shading_material_Material) -> vec3f {
+    return package_compute_shading_model_diffuse_lambertianDist(material, surface_pos);
+}
+
+fn package_compute_shading_model_diffuse_lambertianDist(material: package_compute_shading_material_Material, surface_pos: package_compute_structural_types_SurfacePos) -> vec3f {
+    return material.diffuse_reflectance.rgb;
+}
+
+struct package_compute_shading__1model_sample_ModelSample {
+    next_dir: package_compute_math_types_Vec,
+    dist: vec3f
+}
+
+fn package_compute_shading_model__1dielectric_specular_dielectricSpecularSample(surface_pos: package_compute_structural_types_SurfacePos, curr_dir: package_compute_math_types_Vec, material: package_compute_shading_material_Material) -> package_compute_shading__1model_sample_ModelSample {
+    return package_compute_shading__1model_sample_ModelSample(package_compute_shading_model__1dielectric_specular_dielectricSpecularDir(surface_pos, curr_dir), package_compute_shading_model__1dielectric_specular_dielectricSpecularDist(surface_pos, curr_dir, material));
+}
+
+fn package_compute_shading_model__1dielectric_specular_dielectricSpecularDir(surface_pos: package_compute_structural_types_SurfacePos, curr_dir: package_compute_math_types_Vec) -> package_compute_math_types_Vec {
+    let next_dir = reflect(-curr_dir, package_compute_shading_model__1dielectric_specular_orientedNormal(curr_dir, surface_pos.shading_norm));
+    return next_dir;
+}
+
+fn package_compute_shading_model__1dielectric_specular_orientedNormal(curr_dir: vec3f, normal: vec3f) -> vec3f {
+    return select(-normal, normal, dot(curr_dir, normal) >= 0f);
+}
+
+fn package_compute_shading_model__1dielectric_specular_dielectricSpecularDist(surface_pos: package_compute_structural_types_SurfacePos, curr_dir: package_compute_math_types_Vec, material: package_compute_shading_material_Material) -> vec3f {
+    let fresnel_reflectance = package_compute_shading_model_util_fresnelReflectance(curr_dir, surface_pos.shading_norm, material.ior);
+    return vec3f(fresnel_reflectance);
+}
+
+fn package_compute_shading_model_util_fresnelReflectance(curr_dir: vec3f, normal: vec3f, material_ior: f32) -> f32 {
+    let outside = dot(curr_dir, normal) >= 0f;
+    let incident_ior = select(material_ior, 1f, outside);
+    let transmitted_ior = select(1f, material_ior, outside);
+    let facing_normal = select(-normal, normal, outside);
+    let incident_cosine = clamp(dot(curr_dir, facing_normal), 0f, 1f);
+    let ior_ratio = incident_ior / transmitted_ior;
+    let transmitted_sine_squared = ior_ratio * ior_ratio * max(0f, 1f - incident_cosine * incident_cosine);
+    if transmitted_sine_squared >= 1f {
+        return 1f;
+    }
+    let transmitted_cosine = sqrt(max(0f, 1f - transmitted_sine_squared));
+    let perpendicular_reflectance = (incident_ior * incident_cosine - transmitted_ior * transmitted_cosine) / (incident_ior * incident_cosine + transmitted_ior * transmitted_cosine);
+    let parallel_reflectance = (transmitted_ior * incident_cosine - incident_ior * transmitted_cosine) / (transmitted_ior * incident_cosine + incident_ior * transmitted_cosine);
+    return clamp(0.5f * (perpendicular_reflectance * perpendicular_reflectance + parallel_reflectance * parallel_reflectance), 0f, 1f);
+}
+
+const package_compute_shading_model__1dielectric_rough__1VNDF_EPSILON: f32 = 0.000001f;
+
+fn package_compute_shading_model__1dielectric_rough_dielectricRoughSample(surface_pos: package_compute_structural_types_SurfacePos, curr_dir: package_compute_math_types_Vec, material: package_compute_shading_material_Material) -> package_compute_shading__1model_sample_ModelSample {
+    let micro_norm = package_compute_shading_model__1dielectric_rough_sampleNorm(surface_pos, curr_dir, material);
+    let next_dir = reflect(-curr_dir, micro_norm);
+    let macro_norm = package_compute_shading_model__1dielectric_specular_orientedNormal(curr_dir, surface_pos.shading_norm);
+    if dot(next_dir, macro_norm) <= 0f {
+        return package_compute_shading__1model_sample_ModelSample(next_dir, vec3f(0f));
+    }
+    let dist = package_compute_shading_model__1dielectric_rough_reflectDist(curr_dir, micro_norm, macro_norm, next_dir, material) * package_compute_shading_model__1dielectric_rough_reflectPdfWeight(curr_dir, micro_norm, macro_norm, next_dir, material);
+    return package_compute_shading__1model_sample_ModelSample(next_dir, vec3f(dist));
+}
+
+fn package_compute_shading_model__1dielectric_rough_sampleNorm(surface_pos: package_compute_structural_types_SurfacePos, curr_dir: package_compute_math_types_Vec, material: package_compute_shading_material_Material) -> package_compute_math_types_Vec {
+    let macro_norm = package_compute_shading_model__1dielectric_specular_orientedNormal(curr_dir, surface_pos.shading_norm);
+    let tangent_space = package_compute_math_geometric_makeTangentSpace(macro_norm);
+    let local_curr_dir = normalize(transpose(tangent_space) * curr_dir);
+    let alpha = material.microfacet_roughness;
+    let stretched_curr_dir = normalize(vec3f(alpha * local_curr_dir.x, alpha * local_curr_dir.y, max(local_curr_dir.z, package_compute_shading_model__1dielectric_rough__1VNDF_EPSILON)));
+    let tangent_length_sq = stretched_curr_dir.x * stretched_curr_dir.x + stretched_curr_dir.y * stretched_curr_dir.y;
+    let tangent_x = select(vec3f(1f, 0f, 0f), vec3f(-stretched_curr_dir.y, stretched_curr_dir.x, 0f) / sqrt(max(tangent_length_sq, package_compute_shading_model__1dielectric_rough__1VNDF_EPSILON)), tangent_length_sq > package_compute_shading_model__1dielectric_rough__1VNDF_EPSILON);
+    let tangent_y = cross(stretched_curr_dir, tangent_x);
+    let radius = sqrt(package_compute_math_rng_randFloat());
+    let angle = 2f * package_compute_math_constant_PI * package_compute_math_rng_randFloat();
+    let projected_x = radius * cos(angle);
+    var projected_y = radius * sin(angle);
+    let visibility_lerp = 0.5f * (1f + stretched_curr_dir.z);
+    projected_y = mix(sqrt(max(0f, 1f - projected_x * projected_x)), projected_y, visibility_lerp);
+    let local_stretched_micro_norm = projected_x * tangent_x + projected_y * tangent_y + sqrt(max(0f, 1f - projected_x * projected_x - projected_y * projected_y)) * stretched_curr_dir;
+    let local_micro_norm = normalize(vec3f(alpha * local_stretched_micro_norm.x, alpha * local_stretched_micro_norm.y, max(local_stretched_micro_norm.z, package_compute_shading_model__1dielectric_rough__1VNDF_EPSILON)));
+    return normalize(tangent_space * local_micro_norm);
+}
+
+fn package_compute_shading_model__1dielectric_rough_reflectDist(curr_dir: package_compute_math_types_Vec, micro_norm: package_compute_math_types_Vec, macro_norm: package_compute_math_types_Vec, next_dir: package_compute_math_types_Vec, material: package_compute_shading_material_Material) -> f32 {
+    let curr_macro_projection = max(dot(curr_dir, macro_norm), package_compute_shading_model__1dielectric_rough__1VNDF_EPSILON);
+    let next_macro_projection = max(dot(next_dir, macro_norm), package_compute_shading_model__1dielectric_rough__1VNDF_EPSILON);
+    return package_compute_shading_model__1dielectric_rough_ggxNormDist(micro_norm, macro_norm, material) * package_compute_shading_model__1dielectric_rough_ggxMaskBiDir(acos(curr_macro_projection), acos(next_macro_projection), material) * package_compute_shading_model_util_fresnelReflectance(curr_dir, micro_norm, material.ior) / (4f * curr_macro_projection * next_macro_projection);
+}
+
+fn package_compute_shading_model__1dielectric_rough_reflectPdfWeight(curr_dir: package_compute_math_types_Vec, micro_norm: package_compute_math_types_Vec, macro_norm: package_compute_math_types_Vec, next_dir: package_compute_math_types_Vec, material: package_compute_shading_material_Material) -> f32 {
+    let curr_macro_projection = max(dot(curr_dir, macro_norm), package_compute_shading_model__1dielectric_rough__1VNDF_EPSILON);
+    let next_macro_projection = max(dot(next_dir, macro_norm), 0f);
+    let curr_micro_projection = max(dot(curr_dir, micro_norm), package_compute_shading_model__1dielectric_rough__1VNDF_EPSILON);
+    let visible_normal_pdf = package_compute_shading_model__1dielectric_rough_ggxNormDist(micro_norm, macro_norm, material) * package_compute_shading_model__1dielectric_rough_ggxMaskUniDir(acos(curr_macro_projection), material) * curr_micro_projection / curr_macro_projection;
+    let next_dir_pdf = visible_normal_pdf / (4f * curr_micro_projection);
+    return next_macro_projection / max(next_dir_pdf, package_compute_shading_model__1dielectric_rough__1VNDF_EPSILON);
+}
+
+fn package_compute_shading_model__1dielectric_rough_ggxMaskUniDir(angle: f32, material: package_compute_shading_material_Material) -> f32 {
+    let alpha = material.microfacet_roughness;
+    return 1 / (1 + (sqrt(1 + alpha * tan(angle) * tan(angle)) - 1) / 2);
+}
+
+fn package_compute_shading_model__1dielectric_rough_ggxMaskBiDir(angle1: f32, angle2: f32, material: package_compute_shading_material_Material) -> f32 {
+    let alpha = material.microfacet_roughness;
+    return 1 / (1 + (sqrt(1 + alpha * tan(angle1) * tan(angle1)) - 1) / 2 + (sqrt(1 + alpha * tan(angle2) * tan(angle2)) - 1) / 2);
+}
+
+fn package_compute_shading_model__1dielectric_rough_ggxNormDist(micro_norm: package_compute_math_types_Vec, macro_norm: package_compute_math_types_Vec, material: package_compute_shading_material_Material) -> f32 {
+    let alpha = material.microfacet_roughness;
+    let norm_cosine = clamp(dot(micro_norm, macro_norm), 0f, 1f);
+    let norm_tangent_sq = max(0f, 1f - norm_cosine * norm_cosine) / max(norm_cosine * norm_cosine, package_compute_shading_model__1dielectric_rough__1VNDF_EPSILON);
+    let denominator = package_compute_math_constant_PI * pow(norm_cosine, 4f) * pow(alpha + norm_tangent_sq, 2f);
+    return alpha / max(denominator, package_compute_shading_model__1dielectric_rough__1VNDF_EPSILON);
+}
+
+fn package_compute_shading_collect_collect(curr_dir: vec3f, sampled_rays: package_compute_shading_sample_SampledRays) -> package_compute_physics_radiance_Radiance {
+    var radiance = package_compute_physics_radiance_Radiance();
+    for (var i: u32; i < sampled_rays.count; i++) {
+        radiance += sampled_rays.ray_coeff[i] * sampled_rays.ray_radiance[i];
     }
     return radiance;
 }
