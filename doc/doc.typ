@@ -252,7 +252,7 @@ $
   f & = R / pi                                                                         &             \
 $
 
-=== Dielectric Specular Reflection & Refraction
+=== Specular Reflection & Refraction
 
 #align(center, cetz.canvas({
   import cetz.draw: *
@@ -299,7 +299,7 @@ $
   )
 $
 
-=== Rough Reflection
+=== Rough Reflection & Refracion
 
 The rough reflection model approximates the behavior of micro surface changes, a.k.a. microgeometry.
 The model is usually represented in the form of a *normal distribution function* & a *masking function*:
@@ -461,18 +461,47 @@ source: https://www.khronos.org/gltf/pbr/
 We have this table that shows how physics properties derive from the material information:
 
 #table(
-  columns: 2,
+  columns: (1fr, 2fr),
   table.header([Physics Property (Notation)], [Formula]),
-  [ior ($eta$)], math.cases([`ior` (w extension)], $1.5$),
-
   [Diffuse Reflectance ($R$)], $#raw("base color") dot (1 - #raw("metallic"))$,
 
-  [Fresnel Reflection Coeff ($F_r$)],
-  $cases(1 / 2 (((eta cos theta_i - cos theta_t) / (eta cos theta_i + cos theta_t))^2 + ((cos theta_i - eta cos theta_t) / (cos theta_i + eta cos theta_t))^2))$,
+  [ior ($eta$)],
+  $eta & = n + k i, \
+  "where" & cases(
+    n = cases(#raw("ior") "(w extension)", 1.5),
+    k_i = #raw("metallic") dot sqrt((4n) / (1 - i / (r + b + g)) - (n + 1)^2)
+  ),
+  \
+  & (i in {r, g, b} and vec(r, g, b) = #raw("base color"))$,
 
-  [Fresnel Transmission Coeff ($F_t$)], $1 - F_r$,
-  [Microfacet Distribution Roughness ($alpha = alpha_x = alpha_y$)], $#raw("roughness")^2$,
+  [Microfacet Roughness ($alpha = alpha_x = alpha_y$)], $#raw("roughness")^2$,
 )
+
+#secondary[
+  Since metal ior varies meaningfully based on the wavelength, we are actually interested in ior values on seperate rgb channels. The ior approximation is inferred from the assumption that:
+  - A non-metallic ($#raw("metallic") = 0$) material should have the normal non-complex fresnel reflectance across all rgb channels:
+  $
+    F_(0, r) = F_(0, g) = F_(0, b) =
+    F_0 |_(#raw("metallic") = 0) =
+    ((eta - 1) / (eta + 1))^2
+  $
+  - A fully metallic ($#raw("metallic") = 1$) material should have the fresnel reflectance equal to the base color:
+  $
+    lr(vec(F_(0, r), F_(0, g), F_(0, b))|)_(#raw("metallic") = 1) = #raw("base color") \
+    => F_(0, r) + F_(0, g) + F_(0, b) = 1.0
+  $
+  Therefore we can use this as the approximation:
+  $
+    #h(1fr) k_i & = sqrt((4n) / (1 - #raw("base color") _i) - (n + 1)^2), \
+                & "and" \
+            eta & = n + #raw("metallic") dot k i
+  $
+  Inference:$ F_(0, i)|_(#raw("metallic") = 1) =
+  #raw("base color") _i     & = ((eta - 1) / (eta + 1))^2 \
+      #raw("base color") _i & =((n + k_i i - 1) / (n + k_i i + 1))^2 = ((n - 1)^2 + k_i^2) / ((n + 1)^2 + k_i^2) \
+  1 - #raw("base color") _i & = ((n + 1)^2 - (n - 1)^2) / ((n + 1)^2 + k_i^2) = (4n) / ((n + 1)^2 + k_i^2) \
+                      k_i^2 & = (4n) / (1 - #raw("base color") _i) - (n + 1)^2 \ $
+]
 
 == Tracing
 

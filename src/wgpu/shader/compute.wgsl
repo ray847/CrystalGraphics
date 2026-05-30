@@ -58,7 +58,7 @@ alias package_compute_math_types_Pos = vec3f;
 alias package_compute_math_types_Vec = vec3f;
 
 fn package_compute_render_render(ray: package_compute_math_ray_Ray) -> package_compute_physics_luminance_Luminance {
-    const SAMPLES: u32 = 2;
+    const SAMPLES: u32 = 4;
     var radiance = package_compute_physics_radiance_Radiance();
     for (var i: u32; i < SAMPLES; i++) {
         radiance += package_compute_trace_trace(ray);
@@ -142,7 +142,7 @@ fn package_compute_trace_environmentRadiance(dir: vec3f) -> package_compute_phys
     return mix(package_compute_physics_radiance_Radiance(0.7, 0.8, 1.0), package_compute_physics_radiance_Radiance(0.05, 0.05, 0.06), 1.0 - t);
 }
 
-const package_compute_lod__1MAX_DEPTH = 2;
+const package_compute_lod__1MAX_DEPTH = 4;
 
 struct package_compute_lod_LOD {
     depth: i32
@@ -158,7 +158,7 @@ fn package_compute_lod_decr(lod: package_compute_lod_LOD) -> package_compute_lod
 }
 
 fn package_compute_lod_heuristic(lod: package_compute_lod_LOD) -> f32 {
-    return f32(4 - lod.depth) / 4.0;
+    return f32(package_compute_lod__1MAX_DEPTH - lod.depth) / package_compute_lod__1MAX_DEPTH;
 }
 
 struct package_compute_structural_types_TravelInfo {
@@ -183,7 +183,7 @@ const package_compute_shading_sample__2MAX_SAMPLE_COUNT: u32 = 6u;
 
 const package_compute_shading_sample__2MAX_DIFFUSE_COUNT: u32 = 4u;
 
-const package_compute_shading_sample__3MAX_DIELECTRIC_ROUGH_COUNT: u32 = 4u;
+const package_compute_shading_sample__2MAX_ROUGH_COUNT: u32 = 4u;
 
 const package_compute_shading_sample__2MIN_MODEL_WEIGHT: f32 = 1e-6;
 
@@ -198,14 +198,14 @@ struct package_compute_shading_sample_SampledRays {
 
 struct package_compute_shading_sample_ModelHeuristics {
     diffuse: f32,
-    dielectric_specular: f32,
-    dielectric_rough: f32
+    specular: f32,
+    rough: f32
 }
 
 struct package_compute_shading_sample_ModelSampleCounts {
     diffuse: u32,
-    dielectric_specular: u32,
-    dielectric_rough: u32
+    specular: u32,
+    rough: u32
 }
 
 fn package_compute_shading_sample_sampleRays(curr_dir: vec3f, surface_pos: package_compute_structural_types_SurfacePos, lod: package_compute_lod_LOD) -> package_compute_shading_sample_SampledRays {
@@ -218,45 +218,42 @@ fn package_compute_shading_sample_sampleRays(curr_dir: vec3f, surface_pos: packa
 
 fn package_compute_shading_sample_sampleModels(curr_dir: package_compute_math_types_Vec, surface_pos: package_compute_structural_types_SurfacePos, material: package_compute_shading_material_Material, counts: package_compute_shading_sample_ModelSampleCounts) -> package_compute_shading_sample_SampledRays {
     var new_sample = package_compute_shading_sample_SampledRays();
-    let diffuse_weight: f32 = 1 - material.metallic;
-    let dielectric_reflection_weight: f32 = 1 - material.metallic;
     for (var i: u32 = 0; i < counts.diffuse; i++) {
         let diffuse_sample = package_compute_shading_model_diffuse_diffuseSample(surface_pos, curr_dir, material);
         new_sample.rays[new_sample.count] = package_compute_shading_sample_spawnSurfaceRay(surface_pos, diffuse_sample.next_dir);
-        new_sample.ray_coeff[new_sample.count] = diffuse_weight * diffuse_sample.dist / f32(counts.diffuse);
+        new_sample.ray_coeff[new_sample.count] = diffuse_sample.dist / f32(counts.diffuse);
         new_sample.count += 1;
     }
-    for (var i: u32 = 0; i < counts.dielectric_specular; i++) {
-        let dielectric_specular_sample = package_compute_shading_model__1dielectric_specular_dielectricSpecularSample(surface_pos, curr_dir, material);
-        new_sample.rays[new_sample.count] = package_compute_shading_sample_spawnSurfaceRay(surface_pos, dielectric_specular_sample.next_dir);
-        new_sample.ray_coeff[new_sample.count] = dielectric_reflection_weight * dielectric_specular_sample.dist;
+    for (var i: u32 = 0; i < counts.specular; i++) {
+        let specular_sample = package_compute_shading_model_specular_specularSample(surface_pos, curr_dir, material);
+        new_sample.rays[new_sample.count] = package_compute_shading_sample_spawnSurfaceRay(surface_pos, specular_sample.next_dir);
+        new_sample.ray_coeff[new_sample.count] = specular_sample.dist;
         new_sample.count += 1;
     }
-    for (var i: u32 = 0; i < counts.dielectric_rough; i++) {
-        let dielectric_rough_sample = package_compute_shading_model__1dielectric_rough_dielectricRoughSample(surface_pos, curr_dir, material);
-        new_sample.rays[new_sample.count] = package_compute_shading_sample_spawnSurfaceRay(surface_pos, dielectric_rough_sample.next_dir);
-        new_sample.ray_coeff[new_sample.count] = dielectric_reflection_weight * dielectric_rough_sample.dist / f32(counts.dielectric_rough);
+    for (var i: u32 = 0; i < counts.rough; i++) {
+        let rough_sample = package_compute_shading_model_rough_roughSample(surface_pos, curr_dir, material);
+        new_sample.rays[new_sample.count] = package_compute_shading_sample_spawnSurfaceRay(surface_pos, rough_sample.next_dir);
+        new_sample.ray_coeff[new_sample.count] = rough_sample.dist / f32(counts.rough);
         new_sample.count += 1;
     }
     return new_sample;
 }
 
 fn package_compute_shading_sample_modelHeuristics(material: package_compute_shading_material_Material) -> package_compute_shading_sample_ModelHeuristics {
-    let diffuse_weight: f32 = 1f - material.metallic;
-    let dielectric_reflection_weight: f32 = 1f - material.metallic;
+    let diffuse_weight: f32 = max(material.diffuse_reflectance.r, max(material.diffuse_reflectance.g, material.diffuse_reflectance.b));
     let diffuse_heuristic = select(0f, f32(package_compute_shading_sample__2MAX_DIFFUSE_COUNT), diffuse_weight > package_compute_shading_sample__2MIN_MODEL_WEIGHT);
-    let dielectric_specular_heuristic = select(0f, 1f, dielectric_reflection_weight > package_compute_shading_sample__2MIN_MODEL_WEIGHT && material.microfacet_roughness == 0f);
-    let dielectric_rough_heuristic = select(0f, f32(package_compute_shading_sample__3MAX_DIELECTRIC_ROUGH_COUNT), dielectric_reflection_weight > package_compute_shading_sample__2MIN_MODEL_WEIGHT && material.microfacet_roughness > 0f);
-    return package_compute_shading_sample_ModelHeuristics(diffuse_heuristic, dielectric_specular_heuristic, dielectric_rough_heuristic);
+    let specular_heuristic = select(0f, 1f, material.microfacet_roughness == 0f);
+    let rough_heuristic = select(0f, f32(package_compute_shading_sample__2MAX_ROUGH_COUNT), material.microfacet_roughness > 0f);
+    return package_compute_shading_sample_ModelHeuristics(diffuse_heuristic, specular_heuristic, rough_heuristic);
 }
 
 fn package_compute_shading_sample_modelSampleCounts(available_count: u32, heuristics: package_compute_shading_sample_ModelHeuristics) -> package_compute_shading_sample_ModelSampleCounts {
     let diffuse_desired = package_compute_shading_sample_desiredSampleCount(heuristics.diffuse, package_compute_shading_sample__2MAX_DIFFUSE_COUNT);
-    let dielectric_specular_desired = package_compute_shading_sample_desiredSampleCount(heuristics.dielectric_specular, 1u);
-    let dielectric_rough_desired = package_compute_shading_sample_desiredSampleCount(heuristics.dielectric_rough, package_compute_shading_sample__3MAX_DIELECTRIC_ROUGH_COUNT);
-    let desired_count = diffuse_desired + dielectric_specular_desired + dielectric_rough_desired;
+    let specular_desired = package_compute_shading_sample_desiredSampleCount(heuristics.specular, 1u);
+    let rough_desired = package_compute_shading_sample_desiredSampleCount(heuristics.rough, package_compute_shading_sample__2MAX_ROUGH_COUNT);
+    let desired_count = diffuse_desired + specular_desired + rough_desired;
     if desired_count <= available_count {
-        return package_compute_shading_sample_ModelSampleCounts(diffuse_desired, dielectric_specular_desired, dielectric_rough_desired);
+        return package_compute_shading_sample_ModelSampleCounts(diffuse_desired, specular_desired, rough_desired);
     }
     var counts = package_compute_shading_sample_ModelSampleCounts();
     var remaining_count = available_count;
@@ -264,50 +261,50 @@ fn package_compute_shading_sample_modelSampleCounts(available_count: u32, heuris
         counts.diffuse = 1u;
         remaining_count -= 1u;
     }
-    if dielectric_specular_desired > 0u && remaining_count > 0u {
-        counts.dielectric_specular = 1u;
+    if specular_desired > 0u && remaining_count > 0u {
+        counts.specular = 1u;
         remaining_count -= 1u;
     }
-    if dielectric_rough_desired > 0u && remaining_count > 0u {
-        counts.dielectric_rough = 1u;
+    if rough_desired > 0u && remaining_count > 0u {
+        counts.rough = 1u;
         remaining_count -= 1u;
     }
     var diffuse_extra_cap = diffuse_desired - counts.diffuse;
-    var dielectric_specular_extra_cap = dielectric_specular_desired - counts.dielectric_specular;
-    var dielectric_rough_extra_cap = dielectric_rough_desired - counts.dielectric_rough;
-    let extra_heuristic = select(0f, heuristics.diffuse, diffuse_extra_cap > 0u) + select(0f, heuristics.dielectric_specular, dielectric_specular_extra_cap > 0u) + select(0f, heuristics.dielectric_rough, dielectric_rough_extra_cap > 0u);
+    var specular_extra_cap = specular_desired - counts.specular;
+    var rough_extra_cap = rough_desired - counts.rough;
+    let extra_heuristic = select(0f, heuristics.diffuse, diffuse_extra_cap > 0u) + select(0f, heuristics.specular, specular_extra_cap > 0u) + select(0f, heuristics.rough, rough_extra_cap > 0u);
     if remaining_count > 0u && extra_heuristic > 0f {
         let diffuse_share = f32(remaining_count) * heuristics.diffuse / extra_heuristic;
-        let dielectric_specular_share = f32(remaining_count) * heuristics.dielectric_specular / extra_heuristic;
-        let dielectric_rough_share = f32(remaining_count) * heuristics.dielectric_rough / extra_heuristic;
+        let specular_share = f32(remaining_count) * heuristics.specular / extra_heuristic;
+        let rough_share = f32(remaining_count) * heuristics.rough / extra_heuristic;
         let diffuse_extra = min(diffuse_extra_cap, u32(diffuse_share));
-        let dielectric_specular_extra = min(dielectric_specular_extra_cap, u32(dielectric_specular_share));
-        let dielectric_rough_extra = min(dielectric_rough_extra_cap, u32(dielectric_rough_share));
+        let specular_extra = min(specular_extra_cap, u32(specular_share));
+        let rough_extra = min(rough_extra_cap, u32(rough_share));
         counts.diffuse += diffuse_extra;
-        counts.dielectric_specular += dielectric_specular_extra;
-        counts.dielectric_rough += dielectric_rough_extra;
+        counts.specular += specular_extra;
+        counts.rough += rough_extra;
         diffuse_extra_cap -= diffuse_extra;
-        dielectric_specular_extra_cap -= dielectric_specular_extra;
-        dielectric_rough_extra_cap -= dielectric_rough_extra;
-        remaining_count -= diffuse_extra + dielectric_specular_extra + dielectric_rough_extra;
+        specular_extra_cap -= specular_extra;
+        rough_extra_cap -= rough_extra;
+        remaining_count -= diffuse_extra + specular_extra + rough_extra;
         var diffuse_remainder = select(-1f, diffuse_share - f32(diffuse_extra), diffuse_extra_cap > 0u);
-        var dielectric_specular_remainder = select(-1f, dielectric_specular_share - f32(dielectric_specular_extra), dielectric_specular_extra_cap > 0u);
-        var dielectric_rough_remainder = select(-1f, dielectric_rough_share - f32(dielectric_rough_extra), dielectric_rough_extra_cap > 0u);
+        var specular_remainder = select(-1f, specular_share - f32(specular_extra), specular_extra_cap > 0u);
+        var rough_remainder = select(-1f, rough_share - f32(rough_extra), rough_extra_cap > 0u);
         while (remaining_count > 0u) {
-            if diffuse_remainder >= dielectric_specular_remainder && diffuse_remainder >= dielectric_rough_remainder && diffuse_extra_cap > 0u {
+            if diffuse_remainder >= specular_remainder && diffuse_remainder >= rough_remainder && diffuse_extra_cap > 0u {
                 counts.diffuse += 1u;
                 diffuse_extra_cap -= 1u;
                 diffuse_remainder = -1f;
             }
-            else if dielectric_specular_remainder >= dielectric_rough_remainder && dielectric_specular_extra_cap > 0u {
-                counts.dielectric_specular += 1u;
-                dielectric_specular_extra_cap -= 1u;
-                dielectric_specular_remainder = -1f;
+            else if specular_remainder >= rough_remainder && specular_extra_cap > 0u {
+                counts.specular += 1u;
+                specular_extra_cap -= 1u;
+                specular_remainder = -1f;
             }
-            else if dielectric_rough_extra_cap > 0u {
-                counts.dielectric_rough += 1u;
-                dielectric_rough_extra_cap -= 1u;
-                dielectric_rough_remainder = -1f;
+            else if rough_extra_cap > 0u {
+                counts.rough += 1u;
+                rough_extra_cap -= 1u;
+                rough_remainder = -1f;
             }
             else {
                 break;
@@ -558,15 +555,34 @@ fn package_compute_shading_material_decode(packed_material: package_compute_shad
     let base_color = package_compute_shading_material_baseColor(packed_material, uvs);
     let roughness = package_compute_shading_material_roughness(packed_material, uvs);
     let metallic = package_compute_shading_material_metallic(packed_material, uvs);
-    let ior = packed_material.ior;
-    return package_compute_shading_material_Material(metallic, (1 - metallic) * base_color, roughness * roughness, ior);
+    let raw_ior = packed_material.ior;
+    let ior: package_compute_shading_material_IOR = package_compute_shading_material_materialIor(raw_ior, base_color.rgb, metallic);
+    return package_compute_shading_material_Material((1f - metallic) * base_color, roughness * roughness, ior);
+}
+
+struct package_compute_shading_material_IORChannel {
+    re: f32,
+    im: f32
+}
+
+struct package_compute_shading_material_IOR {
+    r: package_compute_shading_material_IORChannel,
+    g: package_compute_shading_material_IORChannel,
+    b: package_compute_shading_material_IORChannel
 }
 
 struct package_compute_shading_material_Material {
-    metallic: f32,
     diffuse_reflectance: vec4f,
     microfacet_roughness: f32,
-    ior: f32
+    ior: package_compute_shading_material_IOR
+}
+
+fn package_compute_shading_material_materialIor(real_ior: f32, base_color: vec3f, metallic: f32) -> package_compute_shading_material_IOR {
+    return package_compute_shading_material_IOR(package_compute_shading_material_IORChannel(real_ior, metallic * package_compute_shading_material_imaginaryIorFromReflectance(real_ior, base_color.r, base_color)), package_compute_shading_material_IORChannel(real_ior, metallic * package_compute_shading_material_imaginaryIorFromReflectance(real_ior, base_color.g, base_color)), package_compute_shading_material_IORChannel(real_ior, metallic * package_compute_shading_material_imaginaryIorFromReflectance(real_ior, base_color.b, base_color)));
+}
+
+fn package_compute_shading_material_imaginaryIorFromReflectance(real_ior: f32, channel_color: f32, base_color: vec3f) -> f32 {
+    return sqrt(clamp((4 * real_ior) / (1 - channel_color) - pow(real_ior + 1, 2), 0f, 10f));
 }
 
 struct package_compute_shading_material_MaterialTextureInfo {
@@ -694,30 +710,39 @@ struct package_compute_shading__1model_sample_ModelSample {
     dist: vec3f
 }
 
-fn package_compute_shading_model__1dielectric_specular_dielectricSpecularSample(surface_pos: package_compute_structural_types_SurfacePos, curr_dir: package_compute_math_types_Vec, material: package_compute_shading_material_Material) -> package_compute_shading__1model_sample_ModelSample {
-    return package_compute_shading__1model_sample_ModelSample(package_compute_shading_model__1dielectric_specular_dielectricSpecularDir(surface_pos, curr_dir), package_compute_shading_model__1dielectric_specular_dielectricSpecularDist(surface_pos, curr_dir, material));
+fn package_compute_shading_model_specular_specularSample(surface_pos: package_compute_structural_types_SurfacePos, curr_dir: package_compute_math_types_Vec, material: package_compute_shading_material_Material) -> package_compute_shading__1model_sample_ModelSample {
+    return package_compute_shading__1model_sample_ModelSample(package_compute_shading_model_specular_specularDir(surface_pos, curr_dir), package_compute_shading_model_specular_specularDist(surface_pos, curr_dir, material));
 }
 
-fn package_compute_shading_model__1dielectric_specular_dielectricSpecularDir(surface_pos: package_compute_structural_types_SurfacePos, curr_dir: package_compute_math_types_Vec) -> package_compute_math_types_Vec {
-    let next_dir = reflect(-curr_dir, package_compute_shading_model__1dielectric_specular_orientedNormal(curr_dir, surface_pos.shading_norm));
+fn package_compute_shading_model_specular_specularDir(surface_pos: package_compute_structural_types_SurfacePos, curr_dir: package_compute_math_types_Vec) -> package_compute_math_types_Vec {
+    let next_dir = reflect(-curr_dir, package_compute_shading_model_specular_orientedNormal(curr_dir, surface_pos.shading_norm));
     return next_dir;
 }
 
-fn package_compute_shading_model__1dielectric_specular_orientedNormal(curr_dir: vec3f, normal: vec3f) -> vec3f {
+fn package_compute_shading_model_specular_orientedNormal(curr_dir: vec3f, normal: vec3f) -> vec3f {
     return select(-normal, normal, dot(curr_dir, normal) >= 0f);
 }
 
-fn package_compute_shading_model__1dielectric_specular_dielectricSpecularDist(surface_pos: package_compute_structural_types_SurfacePos, curr_dir: package_compute_math_types_Vec, material: package_compute_shading_material_Material) -> vec3f {
+fn package_compute_shading_model_specular_specularDist(surface_pos: package_compute_structural_types_SurfacePos, curr_dir: package_compute_math_types_Vec, material: package_compute_shading_material_Material) -> vec3f {
     let fresnel_reflectance = package_compute_shading_model_util_fresnelReflectance(curr_dir, surface_pos.shading_norm, material.ior);
-    return vec3f(fresnel_reflectance);
+    return fresnel_reflectance;
 }
 
-fn package_compute_shading_model_util_fresnelReflectance(curr_dir: vec3f, normal: vec3f, material_ior: f32) -> f32 {
+const package_compute_shading_model_util__1FRESNEL_EPSILON: f32 = 0.000001f;
+
+fn package_compute_shading_model_util_fresnelReflectance(curr_dir: vec3f, normal: vec3f, material_ior: package_compute_shading_material_IOR) -> vec3f {
+    return vec3f(package_compute_shading_model_util_fresnelReflectanceChannel(curr_dir, normal, material_ior.r), package_compute_shading_model_util_fresnelReflectanceChannel(curr_dir, normal, material_ior.g), package_compute_shading_model_util_fresnelReflectanceChannel(curr_dir, normal, material_ior.b));
+}
+
+fn package_compute_shading_model_util_fresnelReflectanceChannel(curr_dir: vec3f, normal: vec3f, material_ior: package_compute_shading_material_IORChannel) -> f32 {
     let outside = dot(curr_dir, normal) >= 0f;
-    let incident_ior = select(material_ior, 1f, outside);
-    let transmitted_ior = select(1f, material_ior, outside);
     let facing_normal = select(-normal, normal, outside);
     let incident_cosine = clamp(dot(curr_dir, facing_normal), 0f, 1f);
+    if material_ior.im > package_compute_shading_model_util__1FRESNEL_EPSILON {
+        return package_compute_shading_model_util_complexFresnelReflectance(incident_cosine, material_ior);
+    }
+    let incident_ior = select(material_ior.re, 1f, outside);
+    let transmitted_ior = select(1f, material_ior.re, outside);
     let ior_ratio = incident_ior / transmitted_ior;
     let transmitted_sine_squared = ior_ratio * ior_ratio * max(0f, 1f - incident_cosine * incident_cosine);
     if transmitted_sine_squared >= 1f {
@@ -729,27 +754,40 @@ fn package_compute_shading_model_util_fresnelReflectance(curr_dir: vec3f, normal
     return clamp(0.5f * (perpendicular_reflectance * perpendicular_reflectance + parallel_reflectance * parallel_reflectance), 0f, 1f);
 }
 
-const package_compute_shading_model__1dielectric_rough__1VNDF_EPSILON: f32 = 0.000001f;
+fn package_compute_shading_model_util_complexFresnelReflectance(cosine: f32, material_ior: package_compute_shading_material_IORChannel) -> f32 {
+    let real_ior = material_ior.re;
+    let imaginary_ior = material_ior.im;
+    let real_sq = real_ior * real_ior;
+    let imaginary_sq = imaginary_ior * imaginary_ior;
+    let cosine_sq = cosine * cosine;
+    let ior_norm_sq = real_sq + imaginary_sq;
+    let two_real_cosine = 2f * real_ior * cosine;
+    let perpendicular_reflectance = (ior_norm_sq - two_real_cosine + cosine_sq) / max(ior_norm_sq + two_real_cosine + cosine_sq, package_compute_shading_model_util__1FRESNEL_EPSILON);
+    let parallel_reflectance = (ior_norm_sq * cosine_sq - two_real_cosine + 1f) / max(ior_norm_sq * cosine_sq + two_real_cosine + 1f, package_compute_shading_model_util__1FRESNEL_EPSILON);
+    return clamp(0.5f * (perpendicular_reflectance + parallel_reflectance), 0f, 1f);
+}
 
-fn package_compute_shading_model__1dielectric_rough_dielectricRoughSample(surface_pos: package_compute_structural_types_SurfacePos, curr_dir: package_compute_math_types_Vec, material: package_compute_shading_material_Material) -> package_compute_shading__1model_sample_ModelSample {
-    let micro_norm = package_compute_shading_model__1dielectric_rough_sampleNorm(surface_pos, curr_dir, material);
+const package_compute_shading_model_rough__1VNDF_EPSILON: f32 = 0.000001f;
+
+fn package_compute_shading_model_rough_roughSample(surface_pos: package_compute_structural_types_SurfacePos, curr_dir: package_compute_math_types_Vec, material: package_compute_shading_material_Material) -> package_compute_shading__1model_sample_ModelSample {
+    let micro_norm = package_compute_shading_model_rough_sampleNorm(surface_pos, curr_dir, material);
     let next_dir = reflect(-curr_dir, micro_norm);
-    let macro_norm = package_compute_shading_model__1dielectric_specular_orientedNormal(curr_dir, surface_pos.shading_norm);
+    let macro_norm = package_compute_shading_model_specular_orientedNormal(curr_dir, surface_pos.shading_norm);
     if dot(next_dir, macro_norm) <= 0f {
         return package_compute_shading__1model_sample_ModelSample(next_dir, vec3f(0f));
     }
-    let dist = package_compute_shading_model__1dielectric_rough_reflectDist(curr_dir, micro_norm, macro_norm, next_dir, material) * package_compute_shading_model__1dielectric_rough_reflectPdfWeight(curr_dir, micro_norm, macro_norm, next_dir, material);
-    return package_compute_shading__1model_sample_ModelSample(next_dir, vec3f(dist));
+    let dist = package_compute_shading_model_rough_reflectDist(curr_dir, micro_norm, macro_norm, next_dir, material) * package_compute_shading_model_rough_reflectPdfWeight(curr_dir, micro_norm, macro_norm, next_dir, material);
+    return package_compute_shading__1model_sample_ModelSample(next_dir, dist);
 }
 
-fn package_compute_shading_model__1dielectric_rough_sampleNorm(surface_pos: package_compute_structural_types_SurfacePos, curr_dir: package_compute_math_types_Vec, material: package_compute_shading_material_Material) -> package_compute_math_types_Vec {
-    let macro_norm = package_compute_shading_model__1dielectric_specular_orientedNormal(curr_dir, surface_pos.shading_norm);
+fn package_compute_shading_model_rough_sampleNorm(surface_pos: package_compute_structural_types_SurfacePos, curr_dir: package_compute_math_types_Vec, material: package_compute_shading_material_Material) -> package_compute_math_types_Vec {
+    let macro_norm = package_compute_shading_model_specular_orientedNormal(curr_dir, surface_pos.shading_norm);
     let tangent_space = package_compute_math_geometric_makeTangentSpace(macro_norm);
     let local_curr_dir = normalize(transpose(tangent_space) * curr_dir);
     let alpha = material.microfacet_roughness;
-    let stretched_curr_dir = normalize(vec3f(alpha * local_curr_dir.x, alpha * local_curr_dir.y, max(local_curr_dir.z, package_compute_shading_model__1dielectric_rough__1VNDF_EPSILON)));
+    let stretched_curr_dir = normalize(vec3f(alpha * local_curr_dir.x, alpha * local_curr_dir.y, max(local_curr_dir.z, package_compute_shading_model_rough__1VNDF_EPSILON)));
     let tangent_length_sq = stretched_curr_dir.x * stretched_curr_dir.x + stretched_curr_dir.y * stretched_curr_dir.y;
-    let tangent_x = select(vec3f(1f, 0f, 0f), vec3f(-stretched_curr_dir.y, stretched_curr_dir.x, 0f) / sqrt(max(tangent_length_sq, package_compute_shading_model__1dielectric_rough__1VNDF_EPSILON)), tangent_length_sq > package_compute_shading_model__1dielectric_rough__1VNDF_EPSILON);
+    let tangent_x = select(vec3f(1f, 0f, 0f), vec3f(-stretched_curr_dir.y, stretched_curr_dir.x, 0f) / sqrt(max(tangent_length_sq, package_compute_shading_model_rough__1VNDF_EPSILON)), tangent_length_sq > package_compute_shading_model_rough__1VNDF_EPSILON);
     let tangent_y = cross(stretched_curr_dir, tangent_x);
     let radius = sqrt(package_compute_math_rng_randFloat());
     let angle = 2f * package_compute_math_constant_PI * package_compute_math_rng_randFloat();
@@ -758,41 +796,41 @@ fn package_compute_shading_model__1dielectric_rough_sampleNorm(surface_pos: pack
     let visibility_lerp = 0.5f * (1f + stretched_curr_dir.z);
     projected_y = mix(sqrt(max(0f, 1f - projected_x * projected_x)), projected_y, visibility_lerp);
     let local_stretched_micro_norm = projected_x * tangent_x + projected_y * tangent_y + sqrt(max(0f, 1f - projected_x * projected_x - projected_y * projected_y)) * stretched_curr_dir;
-    let local_micro_norm = normalize(vec3f(alpha * local_stretched_micro_norm.x, alpha * local_stretched_micro_norm.y, max(local_stretched_micro_norm.z, package_compute_shading_model__1dielectric_rough__1VNDF_EPSILON)));
+    let local_micro_norm = normalize(vec3f(alpha * local_stretched_micro_norm.x, alpha * local_stretched_micro_norm.y, max(local_stretched_micro_norm.z, package_compute_shading_model_rough__1VNDF_EPSILON)));
     return normalize(tangent_space * local_micro_norm);
 }
 
-fn package_compute_shading_model__1dielectric_rough_reflectDist(curr_dir: package_compute_math_types_Vec, micro_norm: package_compute_math_types_Vec, macro_norm: package_compute_math_types_Vec, next_dir: package_compute_math_types_Vec, material: package_compute_shading_material_Material) -> f32 {
-    let curr_macro_projection = max(dot(curr_dir, macro_norm), package_compute_shading_model__1dielectric_rough__1VNDF_EPSILON);
-    let next_macro_projection = max(dot(next_dir, macro_norm), package_compute_shading_model__1dielectric_rough__1VNDF_EPSILON);
-    return package_compute_shading_model__1dielectric_rough_ggxNormDist(micro_norm, macro_norm, material) * package_compute_shading_model__1dielectric_rough_ggxMaskBiDir(acos(curr_macro_projection), acos(next_macro_projection), material) * package_compute_shading_model_util_fresnelReflectance(curr_dir, micro_norm, material.ior) / (4f * curr_macro_projection * next_macro_projection);
+fn package_compute_shading_model_rough_reflectDist(curr_dir: package_compute_math_types_Vec, micro_norm: package_compute_math_types_Vec, macro_norm: package_compute_math_types_Vec, next_dir: package_compute_math_types_Vec, material: package_compute_shading_material_Material) -> vec3f {
+    let curr_macro_projection = max(dot(curr_dir, macro_norm), package_compute_shading_model_rough__1VNDF_EPSILON);
+    let next_macro_projection = max(dot(next_dir, macro_norm), package_compute_shading_model_rough__1VNDF_EPSILON);
+    return package_compute_shading_model_rough_ggxNormDist(micro_norm, macro_norm, material) * package_compute_shading_model_rough_ggxMaskBiDir(acos(curr_macro_projection), acos(next_macro_projection), material) * package_compute_shading_model_util_fresnelReflectance(curr_dir, micro_norm, material.ior) / (4f * curr_macro_projection * next_macro_projection);
 }
 
-fn package_compute_shading_model__1dielectric_rough_reflectPdfWeight(curr_dir: package_compute_math_types_Vec, micro_norm: package_compute_math_types_Vec, macro_norm: package_compute_math_types_Vec, next_dir: package_compute_math_types_Vec, material: package_compute_shading_material_Material) -> f32 {
-    let curr_macro_projection = max(dot(curr_dir, macro_norm), package_compute_shading_model__1dielectric_rough__1VNDF_EPSILON);
+fn package_compute_shading_model_rough_reflectPdfWeight(curr_dir: package_compute_math_types_Vec, micro_norm: package_compute_math_types_Vec, macro_norm: package_compute_math_types_Vec, next_dir: package_compute_math_types_Vec, material: package_compute_shading_material_Material) -> f32 {
+    let curr_macro_projection = max(dot(curr_dir, macro_norm), package_compute_shading_model_rough__1VNDF_EPSILON);
     let next_macro_projection = max(dot(next_dir, macro_norm), 0f);
-    let curr_micro_projection = max(dot(curr_dir, micro_norm), package_compute_shading_model__1dielectric_rough__1VNDF_EPSILON);
-    let visible_normal_pdf = package_compute_shading_model__1dielectric_rough_ggxNormDist(micro_norm, macro_norm, material) * package_compute_shading_model__1dielectric_rough_ggxMaskUniDir(acos(curr_macro_projection), material) * curr_micro_projection / curr_macro_projection;
+    let curr_micro_projection = max(dot(curr_dir, micro_norm), package_compute_shading_model_rough__1VNDF_EPSILON);
+    let visible_normal_pdf = package_compute_shading_model_rough_ggxNormDist(micro_norm, macro_norm, material) * package_compute_shading_model_rough_ggxMaskUniDir(acos(curr_macro_projection), material) * curr_micro_projection / curr_macro_projection;
     let next_dir_pdf = visible_normal_pdf / (4f * curr_micro_projection);
-    return next_macro_projection / max(next_dir_pdf, package_compute_shading_model__1dielectric_rough__1VNDF_EPSILON);
+    return next_macro_projection / max(next_dir_pdf, package_compute_shading_model_rough__1VNDF_EPSILON);
 }
 
-fn package_compute_shading_model__1dielectric_rough_ggxMaskUniDir(angle: f32, material: package_compute_shading_material_Material) -> f32 {
+fn package_compute_shading_model_rough_ggxMaskUniDir(angle: f32, material: package_compute_shading_material_Material) -> f32 {
     let alpha = material.microfacet_roughness;
     return 1 / (1 + (sqrt(1 + alpha * tan(angle) * tan(angle)) - 1) / 2);
 }
 
-fn package_compute_shading_model__1dielectric_rough_ggxMaskBiDir(angle1: f32, angle2: f32, material: package_compute_shading_material_Material) -> f32 {
+fn package_compute_shading_model_rough_ggxMaskBiDir(angle1: f32, angle2: f32, material: package_compute_shading_material_Material) -> f32 {
     let alpha = material.microfacet_roughness;
     return 1 / (1 + (sqrt(1 + alpha * tan(angle1) * tan(angle1)) - 1) / 2 + (sqrt(1 + alpha * tan(angle2) * tan(angle2)) - 1) / 2);
 }
 
-fn package_compute_shading_model__1dielectric_rough_ggxNormDist(micro_norm: package_compute_math_types_Vec, macro_norm: package_compute_math_types_Vec, material: package_compute_shading_material_Material) -> f32 {
+fn package_compute_shading_model_rough_ggxNormDist(micro_norm: package_compute_math_types_Vec, macro_norm: package_compute_math_types_Vec, material: package_compute_shading_material_Material) -> f32 {
     let alpha = material.microfacet_roughness;
     let norm_cosine = clamp(dot(micro_norm, macro_norm), 0f, 1f);
-    let norm_tangent_sq = max(0f, 1f - norm_cosine * norm_cosine) / max(norm_cosine * norm_cosine, package_compute_shading_model__1dielectric_rough__1VNDF_EPSILON);
+    let norm_tangent_sq = max(0f, 1f - norm_cosine * norm_cosine) / max(norm_cosine * norm_cosine, package_compute_shading_model_rough__1VNDF_EPSILON);
     let denominator = package_compute_math_constant_PI * pow(norm_cosine, 4f) * pow(alpha + norm_tangent_sq, 2f);
-    return alpha / max(denominator, package_compute_shading_model__1dielectric_rough__1VNDF_EPSILON);
+    return alpha / max(denominator, package_compute_shading_model_rough__1VNDF_EPSILON);
 }
 
 fn package_compute_shading_collect_collect(curr_dir: vec3f, sampled_rays: package_compute_shading_sample_SampledRays) -> package_compute_physics_radiance_Radiance {

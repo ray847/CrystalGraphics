@@ -14,19 +14,23 @@ fn decode(packed_material: PackedMaterial, uvs: array<vec2f, 2>) -> Material {
     let roughness = roughness(packed_material, uvs);
     let metallic = metallic(packed_material, uvs);
     let raw_ior = packed_material.ior;
-    let ior: IOR = IOR(
-    );
+    let ior: IOR = materialIor(raw_ior, base_color.rgb, metallic);
     return Material(
-        (1 - metallic) * base_color,
+        (1.0f - metallic) * base_color,
         roughness * roughness,
         ior
     );
 }
 
-alias IOR = vec3<IORChannel>;
 struct IORChannel {
     re: f32,
     im: f32,
+};
+
+struct IOR {
+    r: IORChannel,
+    g: IORChannel,
+    b: IORChannel,
 };
 
 struct Material {
@@ -34,6 +38,40 @@ struct Material {
     microfacet_roughness: f32,
     ior: IOR,
 };
+
+fn materialIor(real_ior: f32, base_color: vec3f, metallic: f32) -> IOR {
+    return IOR(
+        IORChannel(
+            real_ior,
+            metallic *
+            imaginaryIorFromReflectance(real_ior, base_color.r, base_color)
+        ),
+        IORChannel(
+            real_ior,
+            metallic *
+            imaginaryIorFromReflectance(real_ior, base_color.g, base_color)
+        ),
+        IORChannel(
+            real_ior,
+            metallic *
+            imaginaryIorFromReflectance(real_ior, base_color.b, base_color)
+        )
+    );
+}
+
+fn imaginaryIorFromReflectance(
+    real_ior: f32,
+    channel_color: f32,
+    base_color: vec3f
+) -> f32 {
+    return sqrt(
+        clamp(
+            (4 * real_ior) / (1 - channel_color) - pow(real_ior + 1, 2),
+            0.0f,
+            10.0f
+        )
+    );
+}
 
 struct MaterialTextureInfo {
     index: i32,

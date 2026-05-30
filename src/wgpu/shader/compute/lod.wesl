@@ -1,4 +1,4 @@
-const MAX_DEPTH = 2;
+const MAX_DEPTH = 4;
 
 struct LOD {
     depth: i32,
@@ -14,5 +14,5 @@ fn decr(lod: LOD) -> LOD {
 }
 
 fn heuristic(lod: LOD) -> f32 {
-    return f32(4 - lod.depth) / 4.0;
+    return f32(MAX_DEPTH - lod.depth) / MAX_DEPTH;
 }

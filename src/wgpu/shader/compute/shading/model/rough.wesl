@@ -1,6 +1,6 @@
 import package::compute::math;
 import package::compute::structural;
-import super::dielectric_specular::{orientedNormal};
+import super::specular::{orientedNormal};
 import super::super::material::Material;
 import super::super::model_sample::ModelSample;
 import super::util::{fresnelReflectance};
@@ -8,7 +8,7 @@ import super::util::{fresnelReflectance};
 const VNDF_EPSILON: f32 = 1e-6f;
 
 /* Sample Function */
-fn dielectricRoughSample(
+fn roughSample(
     surface_pos: structural::SurfacePos,
     curr_dir: math::Vec,
     material: Material
@@ -24,7 +24,7 @@ fn dielectricRoughSample(
         * reflectPdfWeight(curr_dir, micro_norm, macro_norm, next_dir, material);
     return ModelSample(
         next_dir,
-        vec3f(dist)
+        dist
     );
 }
 
@@ -89,7 +89,7 @@ fn reflectDist(
     macro_norm: math::Vec,
     next_dir: math::Vec,
     material: Material
-) -> f32 {
+) -> vec3f {
     let curr_macro_projection = max(dot(curr_dir, macro_norm), VNDF_EPSILON);
     let next_macro_projection = max(dot(next_dir, macro_norm), VNDF_EPSILON);
 
