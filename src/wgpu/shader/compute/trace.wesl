@@ -4,7 +4,7 @@ import package::compute::physics;
 import package::compute::shading;
 import package::compute::structural;
 
-const MAX_TRACE_DEPTH: u32 = 8;
+const MAX_TRACE_DEPTH: u32 = lod::MAX_DEPTH;
 
 struct Stack {
     /* Argument */
@@ -86,7 +86,7 @@ fn trace(ray: math::Ray) -> physics::Radiance {
 }
 
 fn environmentRadiance(dir: vec3f) -> physics::Radiance {
-    let t = 0.5 * (dir.y + 1.0);
+    let t = 0.5 * (dir.z + 1.0);
     return mix(
         physics::Radiance(0.7, 0.8, 1.0),
         physics::Radiance(0.05, 0.05, 0.06),

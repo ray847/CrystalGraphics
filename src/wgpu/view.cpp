@@ -19,28 +19,33 @@ std::expected<void, Error> Env::View(const SceneData& scene_data,
   /* Camera */
   auto write_camera_res = WriteCameraUniform(camera, resources_, *queue_);
   if (!write_camera_res) return std::unexpected(write_camera_res.error());
-  /* BVH */
-  auto write_bvh_res = WriteScene(scene_data,
-                                  resources_,
-                                  limits_.minStorageBufferOffsetAlignment,
-                                  *queue_,
-                                  *device_);
-  if (!write_bvh_res) return std::unexpected(write_bvh_res.error());
-  if (write_bvh_res->storage_changed
-      || write_bvh_res->material_textures_changed)
-    if (auto update_res = UpdateComputeBindGroup2(compute_bindgroups_,
-                                                  *resources_.tlas_storage,
-                                                  resources_.inst_offset,
-                                                  *resources_.scene_storage,
-                                                  resources_.idx_offset,
-                                                  resources_.vert_offset,
-                                                  resources_.mat_offset,
-                                                  *resources_.material_texture_array,
-                                                  *resources_.material_texture_sampler,
-                                                  compute_bindgroup_layouts_,
-                                                  *device_);
-        !update_res)
-      return std::unexpected(update_res.error());
+  /* Scene */
+  if (!scene_buffer_cache_tag_.Match(scene_data)) {
+    auto write_scene_res = WriteScene(scene_data,
+                                      resources_,
+                                      limits_.minStorageBufferOffsetAlignment,
+                                      *queue_,
+                                      *device_);
+    if (!write_scene_res) return std::unexpected(write_scene_res.error());
+    if (write_scene_res->storage_changed
+        || write_scene_res->material_textures_changed)
+      if (auto update_res =
+              UpdateComputeBindGroup2(compute_bindgroups_,
+                                      *resources_.tlas_storage,
+                                      resources_.inst_offset,
+                                      *resources_.scene_storage,
+                                      resources_.idx_offset,
+                                      resources_.vert_offset,
+                                      resources_.mat_offset,
+                                      *resources_.material_texture_array,
+                                      *resources_.material_texture_sampler,
+                                      compute_bindgroup_layouts_,
+                                      *device_);
+          !update_res)
+        return std::unexpected(update_res.error());
+    /* Update cache. */
+    scene_buffer_cache_tag_.Write(scene_data);
+  }
   /* Target View */
   auto target_view_res{ NextTargetView(*surface_) };
   if (!target_view_res) return std::unexpected(target_view_res.error());

@@ -74,7 +74,7 @@ struct Scene::Impl {
   using SpaceDef = spatial::SpaceDef<Trans, Primitive>;
 
   VertexContainer vertices_;
-  std::vector<uint32_t> indices_;
+  std::vector<size32_t> indices_;
   std::vector<Material> materials_;
   TextureContainer textures_;
   spatial::Space<SpaceDef> space_;

@@ -13,6 +13,7 @@
 #include "CrystalGraphics/error.h"
 #include "compute.h"
 #include "resource.h"
+#include "src/cache.h"
 #include "src/pathtracing/scene_data.h"
 
 namespace crystal::graphics::wgpu {
@@ -43,6 +44,12 @@ class Env {
   ::wgpu::raii::Surface surface_;
   /* Resources */
   Resources resources_;
+  struct SceneDataTagger {
+    static std::filesystem::path operator()(const SceneData& scene_data) {
+      return scene_data.file_path_;
+    }
+  };
+  CacheTag<SceneData, SceneDataTagger> scene_buffer_cache_tag_{};
   /* Pipelines */
   ComputeBindGroupLayouts compute_bindgroup_layouts_;
   ComputeBindGroups compute_bindgroups_;
