@@ -6,6 +6,8 @@ import package::compute::structural;
 
 const MAX_TRACE_DEPTH: u32 = lod::MAX_DEPTH;
 
+@group(2) @binding(8) var environment_texture: texture_2d<f32>;
+
 struct Stack {
     /* Argument */
     ray: math::Ray,
@@ -86,10 +88,21 @@ fn trace(ray: math::Ray) -> physics::Radiance {
 }
 
 fn environmentRadiance(dir: vec3f) -> physics::Radiance {
-    let t = 0.5 * (dir.z + 1.0);
-    return mix(
-        physics::Radiance(0.7, 0.8, 1.0),
-        physics::Radiance(0.05, 0.05, 0.06),
-        1.0 - t
-    );
+    let env_uv = environmentUv(normalize(dir));
+    return physics::Radiance(environmentTexel(env_uv).rgb);
+}
+
+fn environmentTexel(uv: vec2f) -> vec4f {
+    let dims = textureDimensions(environment_texture);
+    let wrapped_u = uv.x - floor(uv.x);
+    let clamped_v = clamp(uv.y, 0.0f, 0.999999f);
+    let x = min(dims.x - 1u, u32(wrapped_u * f32(dims.x)));
+    let y = min(dims.y - 1u, u32(clamped_v * f32(dims.y)));
+    return textureLoad(environment_texture, vec2i(i32(x), i32(y)), 0);
+}
+
+fn environmentUv(dir: vec3f) -> vec2f {
+    let u = atan2(dir.y, dir.x) / (2.0f * math::PI) + 0.5f;
+    let v = acos(clamp(dir.z, -1.0f, 1.0f)) / math::PI;
+    return vec2f(u, v);
 }

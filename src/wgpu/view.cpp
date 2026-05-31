@@ -28,7 +28,8 @@ std::expected<void, Error> Env::View(const SceneData& scene_data,
                                       *device_);
     if (!write_scene_res) return std::unexpected(write_scene_res.error());
     if (write_scene_res->storage_changed
-        || write_scene_res->material_textures_changed)
+        || write_scene_res->material_textures_changed
+        || write_scene_res->environment_texture_changed)
       if (auto update_res =
               UpdateComputeBindGroup2(compute_bindgroups_,
                                       *resources_.tlas_storage,
@@ -39,6 +40,8 @@ std::expected<void, Error> Env::View(const SceneData& scene_data,
                                       resources_.mat_offset,
                                       *resources_.material_texture_array,
                                       *resources_.material_texture_sampler,
+                                      *resources_.environment_texture,
+                                      *resources_.environment_texture_sampler,
                                       compute_bindgroup_layouts_,
                                       *device_);
           !update_res)

@@ -3,18 +3,26 @@
 #include <cgltf.h>
 
 #include <algorithm>
+#include <array>
+#include <cmath>
 #include <cstddef>
 #include <cctype>
+#include <cstdlib>
 #include <fstream>
 #include <filesystem>
 #include <glm/ext/matrix_float4x4.hpp>
+#include <glm/ext/vector_float3.hpp>
+#include <glm/geometric.hpp>
 #include <glm/trigonometric.hpp>
 #include <limits>
+#include <optional>
 #include <string>
 #include <string_view>
+#include <utility>
 #include <vector>
 
 #include "CrystalGraphics/public.h"
+#include "image_decode.h"
 #include "scene_impl.h"
 
 namespace crystal::graphics {
@@ -225,6 +233,401 @@ std::expected<void, Error> LoadTextures(const cgltf_data& data,
     textures.push_back(std::move(*texture));
   }
   return {};
+}
+
+char DecodeJsonEscape(char c) {
+  switch (c) {
+    case '"':
+    case '\\':
+    case '/':
+      return c;
+    case 'b':
+      return '\b';
+    case 'f':
+      return '\f';
+    case 'n':
+      return '\n';
+    case 'r':
+      return '\r';
+    case 't':
+      return '\t';
+    default:
+      return c;
+  }
+}
+
+std::string JsonUnescape(std::string_view value) {
+  std::string res;
+  res.reserve(value.size());
+  for (std::size_t i = 0; i < value.size(); ++i) {
+    if (value[i] == '\\' && i + 1 < value.size()) {
+      if (value[i + 1] == 'u' && i + 5 < value.size()) {
+        res.push_back('?');
+        i += 5;
+      } else {
+        res.push_back(DecodeJsonEscape(value[i + 1]));
+        i += 1;
+      }
+      continue;
+    }
+    res.push_back(value[i]);
+  }
+  return res;
+}
+
+std::optional<std::string> FindJsonStringProperty(std::string_view json,
+                                                  std::string_view key) {
+  std::string quoted_key = "\"" + std::string(key) + "\"";
+  std::size_t pos = 0;
+  while ((pos = json.find(quoted_key, pos)) != std::string_view::npos) {
+    pos += quoted_key.size();
+    while (pos < json.size() && std::isspace(static_cast<unsigned char>(json[pos])))
+      ++pos;
+    if (pos >= json.size() || json[pos] != ':') continue;
+    ++pos;
+    while (pos < json.size() && std::isspace(static_cast<unsigned char>(json[pos])))
+      ++pos;
+    if (pos >= json.size() || json[pos] != '"') continue;
+    ++pos;
+
+    std::size_t end = pos;
+    bool escaped = false;
+    while (end < json.size()) {
+      if (escaped) {
+        escaped = false;
+      } else if (json[end] == '\\') {
+        escaped = true;
+      } else if (json[end] == '"') {
+        return JsonUnescape(json.substr(pos, end - pos));
+      }
+      ++end;
+    }
+  }
+  return std::nullopt;
+}
+
+std::optional<std::filesystem::path> ResolveEnvironmentPath(
+    std::string_view json,
+    const std::filesystem::path& gltf_file) {
+  constexpr std::array<std::string_view, 6> keys{
+    "environment_hdr",
+    "environmentHdr",
+    "environmentHDR",
+    "environmentMap",
+    "hdr",
+    "hdrFile",
+  };
+  for (std::string_view key : keys) {
+    auto value = FindJsonStringProperty(json, key);
+    if (!value || value->empty()) continue;
+
+    std::filesystem::path decoded_path{ PercentDecodeString(*value) };
+    if (decoded_path.is_absolute()) return decoded_path;
+    return gltf_file.parent_path() / decoded_path;
+  }
+  return std::nullopt;
+}
+
+std::optional<std::filesystem::path> LoadEnvironmentHdrFile(
+    const cgltf_data& data,
+    const std::filesystem::path& gltf_file) {
+  auto read_extras = [&](const cgltf_extras& extras)
+      -> std::optional<std::filesystem::path> {
+    if (!extras.data) return std::nullopt;
+    return ResolveEnvironmentPath(extras.data, gltf_file);
+  };
+  auto read_extensions = [&](const cgltf_extension* extensions,
+                             cgltf_size extension_count)
+      -> std::optional<std::filesystem::path> {
+    for (cgltf_size i = 0; i < extension_count; ++i) {
+      if (!extensions[i].data) continue;
+      auto path = ResolveEnvironmentPath(extensions[i].data, gltf_file);
+      if (path) return path;
+    }
+    return std::nullopt;
+  };
+
+  if (auto path = read_extras(data.extras)) return path;
+  if (auto path = read_extensions(data.data_extensions,
+                                  data.data_extensions_count))
+    return path;
+  if (data.scene) {
+    if (auto path = read_extras(data.scene->extras)) return path;
+    if (auto path = read_extensions(data.scene->extensions,
+                                    data.scene->extensions_count))
+      return path;
+  }
+  return std::nullopt;
+}
+
+const cgltf_extension* FindExtension(const cgltf_extension* extensions,
+                                     cgltf_size extension_count,
+                                     std::string_view name) {
+  for (cgltf_size i = 0; i < extension_count; ++i) {
+    if (extensions[i].name == nullptr) continue;
+    if (name == extensions[i].name) return &extensions[i];
+  }
+  return nullptr;
+}
+
+void SkipJsonWhitespace(std::string_view json, std::size_t& pos) {
+  while (pos < json.size()
+         && std::isspace(static_cast<unsigned char>(json[pos])))
+    ++pos;
+}
+
+std::optional<float> ParseJsonFloat(std::string_view json, std::size_t& pos) {
+  SkipJsonWhitespace(json, pos);
+  std::size_t start = pos;
+  if (pos < json.size() && (json[pos] == '-' || json[pos] == '+')) ++pos;
+  while (pos < json.size()
+         && std::isdigit(static_cast<unsigned char>(json[pos])))
+    ++pos;
+  if (pos < json.size() && json[pos] == '.') {
+    ++pos;
+    while (pos < json.size()
+           && std::isdigit(static_cast<unsigned char>(json[pos])))
+      ++pos;
+  }
+  if (pos < json.size() && (json[pos] == 'e' || json[pos] == 'E')) {
+    ++pos;
+    if (pos < json.size() && (json[pos] == '-' || json[pos] == '+')) ++pos;
+    while (pos < json.size()
+           && std::isdigit(static_cast<unsigned char>(json[pos])))
+      ++pos;
+  }
+  if (start == pos) return std::nullopt;
+
+  return std::stof(std::string(json.substr(start, pos - start)));
+}
+
+std::optional<std::array<float, 4>> FindFirstFloat4Property(
+    std::string_view json,
+    std::string_view property) {
+  std::string quoted_property = "\"" + std::string(property) + "\"";
+  std::size_t pos = json.find(quoted_property);
+  if (pos == std::string_view::npos) return std::nullopt;
+
+  pos = json.find('[', pos + quoted_property.size());
+  if (pos == std::string_view::npos) return std::nullopt;
+  ++pos;
+
+  std::array<float, 4> values{};
+  for (std::size_t i = 0; i < values.size(); ++i) {
+    auto value = ParseJsonFloat(json, pos);
+    if (!value) return std::nullopt;
+    values[i] = *value;
+
+    SkipJsonWhitespace(json, pos);
+    if (i + 1 < values.size()) {
+      if (pos >= json.size() || json[pos] != ',') return std::nullopt;
+      ++pos;
+    }
+  }
+  return values;
+}
+
+std::optional<std::array<cgltf_size, 6>> FindFirstSpecularImageSet(
+    std::string_view json) {
+  std::size_t pos = json.find("\"specularImages\"");
+  if (pos == std::string_view::npos) return std::nullopt;
+
+  pos = json.find('[', pos);
+  if (pos == std::string_view::npos) return std::nullopt;
+  pos = json.find('[', pos + 1);
+  if (pos == std::string_view::npos) return std::nullopt;
+  ++pos;
+
+  std::array<cgltf_size, 6> image_indices{};
+  for (cgltf_size i = 0; i < image_indices.size(); ++i) {
+    SkipJsonWhitespace(json, pos);
+    if (pos >= json.size() || !std::isdigit(static_cast<unsigned char>(json[pos])))
+      return std::nullopt;
+
+    cgltf_size value = 0;
+    while (pos < json.size()
+           && std::isdigit(static_cast<unsigned char>(json[pos]))) {
+      value = value * 10 + static_cast<cgltf_size>(json[pos] - '0');
+      ++pos;
+    }
+    image_indices[i] = value;
+
+    SkipJsonWhitespace(json, pos);
+    if (i + 1 < image_indices.size()) {
+      if (pos >= json.size() || json[pos] != ',') return std::nullopt;
+      ++pos;
+    }
+  }
+  return image_indices;
+}
+
+glm::vec3 ImageTexel(const DecodedFloatImage& image, float u, float v) {
+  u = std::clamp(u, 0.0f, 1.0f);
+  v = std::clamp(v, 0.0f, 1.0f);
+  std::uint32_t x =
+      std::min(image.width - 1,
+               static_cast<std::uint32_t>(u * static_cast<float>(image.width)));
+  std::uint32_t y = std::min(
+      image.height - 1,
+      static_cast<std::uint32_t>(v * static_cast<float>(image.height)));
+  std::size_t offset =
+      (static_cast<std::size_t>(y) * image.width + x) * 4;
+  return glm::vec3{
+    image.rgba32f[offset + 0],
+    image.rgba32f[offset + 1],
+    image.rgba32f[offset + 2],
+  };
+}
+
+glm::vec3 SampleCube(const std::array<DecodedFloatImage, 6>& faces,
+                     glm::vec3 dir) {
+  float abs_x = std::abs(dir.x);
+  float abs_y = std::abs(dir.y);
+  float abs_z = std::abs(dir.z);
+
+  cgltf_size face = 0;
+  float u = 0.0f;
+  float v = 0.0f;
+  if (abs_x >= abs_y && abs_x >= abs_z) {
+    if (dir.x >= 0.0f) {
+      face = 1;
+      u = (-dir.z / abs_x + 1.0f) * 0.5f;
+    } else {
+      face = 0;
+      u = (dir.z / abs_x + 1.0f) * 0.5f;
+    }
+    v = (-dir.y / abs_x + 1.0f) * 0.5f;
+  } else if (abs_y >= abs_z) {
+    if (dir.y >= 0.0f) {
+      face = 2;
+      u = (dir.x / abs_y + 1.0f) * 0.5f;
+      v = (dir.z / abs_y + 1.0f) * 0.5f;
+    } else {
+      face = 3;
+      u = (dir.x / abs_y + 1.0f) * 0.5f;
+      v = (-dir.z / abs_y + 1.0f) * 0.5f;
+    }
+  } else {
+    if (dir.z >= 0.0f) {
+      face = 4;
+      u = (dir.x / abs_z + 1.0f) * 0.5f;
+      v = (1.0f - dir.y / abs_z) * 0.5f;
+    } else {
+      face = 5;
+      u = (-dir.x / abs_z + 1.0f) * 0.5f;
+      v = (1.0f - dir.y / abs_z) * 0.5f;
+    }
+  }
+  return ImageTexel(faces[face], 1.0f - u, 1.0f - v);
+}
+
+glm::vec3 EngineToGltfDirection(glm::vec3 dir) {
+  return glm::vec3{ dir.x, dir.z, -dir.y };
+}
+
+glm::vec3 RotateVector(std::array<float, 4> rotation, glm::vec3 dir) {
+  glm::vec3 imaginary{ rotation[0], rotation[1], rotation[2] };
+  float real = rotation[3];
+  float norm =
+      glm::dot(imaginary, imaginary) + real * real;
+  if (norm <= 0.0f) return dir;
+
+  imaginary /= std::sqrt(norm);
+  real /= std::sqrt(norm);
+
+  glm::vec3 t = 2.0f * glm::cross(imaginary, dir);
+  return dir + real * t + glm::cross(imaginary, t);
+}
+
+std::array<float, 4> InverseRotation(std::array<float, 4> rotation) {
+  return { -rotation[0], -rotation[1], -rotation[2], rotation[3] };
+}
+
+EnvironmentTextureData CubeToEnvironmentTexture(
+    const std::array<DecodedFloatImage, 6>& faces,
+    std::array<float, 4> rotation) {
+  constexpr float pi = 3.14159265358979323846f;
+  std::uint32_t width = faces[0].width * 4;
+  std::uint32_t height = faces[0].height * 2;
+  EnvironmentTextureData texture{
+    .width = width,
+    .height = height,
+    .rgba32f = std::vector<float>(static_cast<std::size_t>(width) * height * 4),
+  };
+
+  for (std::uint32_t y = 0; y < height; ++y) {
+    float v = (static_cast<float>(y) + 0.5f) / static_cast<float>(height);
+    float theta = v * pi;
+    float sin_theta = std::sin(theta);
+    float z = std::cos(theta);
+    for (std::uint32_t x = 0; x < width; ++x) {
+      float u = (static_cast<float>(x) + 0.5f) / static_cast<float>(width);
+      float phi = (u - 0.5f) * 2.0f * pi;
+      glm::vec3 engine_dir{ std::cos(phi) * sin_theta,
+                            std::sin(phi) * sin_theta,
+                            z };
+      glm::vec3 gltf_dir = EngineToGltfDirection(engine_dir);
+      glm::vec3 image_dir = RotateVector(InverseRotation(rotation), gltf_dir);
+      glm::vec3 color = SampleCube(faces, image_dir);
+      std::size_t offset = (static_cast<std::size_t>(y) * width + x) * 4;
+      texture.rgba32f[offset + 0] = color.r;
+      texture.rgba32f[offset + 1] = color.g;
+      texture.rgba32f[offset + 2] = color.b;
+      texture.rgba32f[offset + 3] = 1.0f;
+    }
+  }
+  return texture;
+}
+
+std::expected<TextureData, Error> LoadImageAsTextureData(
+    const cgltf_image& image,
+    const std::filesystem::path& file) {
+  TextureData texture;
+  if (image.name) texture.name = image.name;
+  auto bytes = LoadImageBytes(image, file, texture.mime_type, texture.source_path);
+  if (!bytes) return std::unexpected(bytes.error());
+  texture.encoded_data = std::move(*bytes);
+  return texture;
+}
+
+std::expected<std::optional<EnvironmentTextureData>, Error>
+LoadImageBasedEnvironmentTexture(const cgltf_data& data,
+                                 const std::filesystem::path& file) {
+  const cgltf_extension* extension =
+      FindExtension(data.data_extensions,
+                    data.data_extensions_count,
+                    "EXT_lights_image_based");
+  if (extension == nullptr || extension->data == nullptr) return std::nullopt;
+
+  auto image_indices = FindFirstSpecularImageSet(extension->data);
+  if (!image_indices) return std::nullopt;
+  std::array<float, 4> rotation =
+      FindFirstFloat4Property(extension->data, "rotation")
+          .value_or(std::array<float, 4>{ 0.0f, 0.0f, 0.0f, 1.0f });
+
+  std::array<DecodedFloatImage, 6> faces;
+  for (cgltf_size i = 0; i < image_indices->size(); ++i) {
+    cgltf_size image_index = (*image_indices)[i];
+    if (image_index >= data.images_count)
+      return std::unexpected("Image based light references an invalid image.");
+
+    auto texture = LoadImageAsTextureData(data.images[image_index], file);
+    if (!texture) return std::unexpected(texture.error());
+
+    auto image = DecodeImageRgba32f(*texture);
+    if (!image) return std::unexpected(image.error());
+    if (image->width == 0 || image->height == 0)
+      return std::unexpected("Image based light has an empty cube face.");
+    if (i > 0
+        && (image->width != faces[0].width || image->height != faces[0].height))
+      return std::unexpected(
+          "Image based light cube faces do not share one size.");
+
+    faces[i] = std::move(*image);
+  }
+  return std::optional<EnvironmentTextureData>{
+    CubeToEnvironmentTexture(faces, rotation)
+  };
 }
 
 MaterialTextureInfo DefaultTextureInfo() {
@@ -453,6 +856,14 @@ std::expected<Scene, Error> LoadScene(std::filesystem::path file) {
     cgltf_free(data);
     return std::unexpected("cgltf load buffers failed.");
   }
+
+  res.impl_->environment_hdr_file_ = LoadEnvironmentHdrFile(*data, file);
+  auto environment_texture = LoadImageBasedEnvironmentTexture(*data, file);
+  if (!environment_texture) {
+    cgltf_free(data);
+    return std::unexpected(environment_texture.error());
+  }
+  res.impl_->environment_texture_ = std::move(*environment_texture);
 
   /* Extract textures. */
   auto load_textures_res = LoadTextures(*data, file, textures);

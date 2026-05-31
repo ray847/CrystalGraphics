@@ -58,6 +58,8 @@ std::expected<Env, Error> CreateEnv(GLFWwindow* window) {
                                                    resources->mat_offset,
                                                    *resources->material_texture_array,
                                                    *resources->material_texture_sampler,
+                                                   *resources->environment_texture,
+                                                   *resources->environment_texture_sampler,
                                                    *compute_bindgroup_layouts,
                                                    *device);
   if (!compute_bindgroup) return std::unexpected(compute_bindgroup.error());

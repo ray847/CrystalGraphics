@@ -22,6 +22,12 @@ struct TextureData {
 
 using TextureContainer = std::vector<TextureData>;
 
+struct EnvironmentTextureData {
+  std::uint32_t width = 0;
+  std::uint32_t height = 0;
+  std::vector<float> rgba32f;
+};
+
 }  // namespace crystal::graphics
 
 #endif

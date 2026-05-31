@@ -5,6 +5,8 @@
 
 #include <cassert>
 #include <cstdint>
+#include <filesystem>
+#include <optional>
 #include <ranges>
 #include <vector>
 
@@ -77,6 +79,8 @@ struct Scene::Impl {
   std::vector<size32_t> indices_;
   std::vector<Material> materials_;
   TextureContainer textures_;
+  std::optional<std::filesystem::path> environment_hdr_file_;
+  std::optional<EnvironmentTextureData> environment_texture_;
   spatial::Space<SpaceDef> space_;
 };
 

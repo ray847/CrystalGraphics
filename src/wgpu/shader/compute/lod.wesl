@@ -1,4 +1,4 @@
-const MAX_DEPTH = 8;
+const MAX_DEPTH = 4;
 
 struct LOD {
     depth: i32,

@@ -67,25 +67,31 @@ struct ComputeBindGroupLayouts {
 struct ComputeBindGroups {
   std::array<::wgpu::BindGroup, 3> bindgroups;
   ::wgpu::TextureView material_texture_array_view;
+  ::wgpu::TextureView environment_texture_view;
   ComputeBindGroups(::wgpu::BindGroup group0,
                     ::wgpu::BindGroup group1,
                     ::wgpu::BindGroup group2,
-                    ::wgpu::TextureView material_texture_array_view) :
+                    ::wgpu::TextureView material_texture_array_view,
+                    ::wgpu::TextureView environment_texture_view) :
       bindgroups{ group0, group1, group2 },
-      material_texture_array_view{ material_texture_array_view } {
+      material_texture_array_view{ material_texture_array_view },
+      environment_texture_view{ environment_texture_view } {
   }
   ~ComputeBindGroups() {
     for (auto& bindgroup : bindgroups)
       if (bindgroup) bindgroup.release();
     if (material_texture_array_view) material_texture_array_view.release();
+    if (environment_texture_view) environment_texture_view.release();
   }
   ComputeBindGroups(const ComputeBindGroups&) = delete;
   ComputeBindGroups& operator=(const ComputeBindGroups&) = delete;
   ComputeBindGroups(ComputeBindGroups&& other) noexcept :
       bindgroups{ other.bindgroups },
-      material_texture_array_view{ other.material_texture_array_view } {
+      material_texture_array_view{ other.material_texture_array_view },
+      environment_texture_view{ other.environment_texture_view } {
     other.bindgroups = { nullptr, nullptr, nullptr };
     other.material_texture_array_view = nullptr;
+    other.environment_texture_view = nullptr;
   }
   ComputeBindGroups& operator=(ComputeBindGroups&& other) noexcept {
     if (this != &other) {
@@ -93,10 +99,13 @@ struct ComputeBindGroups {
         if (layout) layout.release();
       }
       if (material_texture_array_view) material_texture_array_view.release();
+      if (environment_texture_view) environment_texture_view.release();
       bindgroups = other.bindgroups;
       material_texture_array_view = other.material_texture_array_view;
+      environment_texture_view = other.environment_texture_view;
       other.bindgroups = { nullptr, nullptr, nullptr };
       other.material_texture_array_view = nullptr;
+      other.environment_texture_view = nullptr;
     }
     return *this;
   }
@@ -132,6 +141,8 @@ std::expected<ComputeBindGroups, Error> CreateComputeBindGroups(
     std::size_t mat_offset,
     ::wgpu::Texture& material_texture_array,
     ::wgpu::Sampler& material_texture_sampler,
+    ::wgpu::Texture& environment_texture,
+    ::wgpu::Sampler& environment_texture_sampler,
     ComputeBindGroupLayouts& layouts,
     ::wgpu::Device& device);
 
@@ -145,6 +156,8 @@ std::expected<void, Error> UpdateComputeBindGroup2(
     std::size_t mat_offset,
     ::wgpu::Texture& material_texture_array,
     ::wgpu::Sampler& material_texture_sampler,
+    ::wgpu::Texture& environment_texture,
+    ::wgpu::Sampler& environment_texture_sampler,
     ComputeBindGroupLayouts& layouts,
     ::wgpu::Device& device);
 

@@ -27,15 +27,19 @@ struct Resources {
   std::size_t idx_offset, vert_offset, mat_offset;
   ::wgpu::raii::Texture material_texture_array;
   ::wgpu::raii::Sampler material_texture_sampler;
+  ::wgpu::raii::Texture environment_texture;
+  ::wgpu::raii::Sampler environment_texture_sampler;
   uint32_t material_texture_width;
   uint32_t material_texture_height;
   uint32_t material_texture_layers;
-  std::uint64_t material_texture_signature;
+  uint32_t environment_texture_width;
+  uint32_t environment_texture_height;
 };
 
 struct SceneWriteResult {
   bool storage_changed;
   bool material_textures_changed;
+  bool environment_texture_changed;
 };
 
 std::expected<Resources, Error> CreateResources(

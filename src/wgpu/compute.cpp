@@ -15,6 +15,7 @@ namespace crystal::graphics::wgpu {
 struct ComputeBindGroup2 {
   ::wgpu::BindGroup bindgroup;
   ::wgpu::TextureView material_texture_array_view;
+  ::wgpu::TextureView environment_texture_view;
 };
 
 std::expected<ComputeBindGroup2, Error> CreateComputeBindGroup2(
@@ -26,6 +27,8 @@ std::expected<ComputeBindGroup2, Error> CreateComputeBindGroup2(
     std::size_t mat_offset,
     ::wgpu::Texture& material_texture_array,
     ::wgpu::Sampler& material_texture_sampler,
+    ::wgpu::Texture& environment_texture,
+    ::wgpu::Sampler& environment_texture_sampler,
     ComputeBindGroupLayouts& layouts,
     ::wgpu::Device& device);
 
@@ -82,7 +85,7 @@ std::expected<ComputeBindGroupLayouts, Error> CreateComputeBindGroupLayouts(
   if (auto e = global::error_stack.Pop()) return std::unexpected(*e);
 
   /* Group 2 */
-  std::array<::wgpu::BindGroupLayoutEntry, 8> group2entries{
+  std::array<::wgpu::BindGroupLayoutEntry, 10> group2entries{
     /* TLAS Nodes */
     [&] -> ::wgpu::BindGroupLayoutEntry {
       ::wgpu::BindGroupLayoutEntry tlas_entry{ ::wgpu::Default };
@@ -150,6 +153,26 @@ std::expected<ComputeBindGroupLayouts, Error> CreateComputeBindGroupLayouts(
       sampler_entry.sampler.type = ::wgpu::SamplerBindingType::Filtering;
       return sampler_entry;
     }(),
+    /* Environment Texture */
+    [&] -> ::wgpu::BindGroupLayoutEntry {
+      ::wgpu::BindGroupLayoutEntry texture_entry{ ::wgpu::Default };
+      texture_entry.binding = 8;
+      texture_entry.visibility = ::wgpu::ShaderStage::Compute;
+      texture_entry.texture.sampleType =
+          ::wgpu::TextureSampleType::UnfilterableFloat;
+      texture_entry.texture.viewDimension =
+          ::wgpu::TextureViewDimension::_2D;
+      texture_entry.texture.multisampled = false;
+      return texture_entry;
+    }(),
+    /* Environment Texture Sampler */
+    [&] -> ::wgpu::BindGroupLayoutEntry {
+      ::wgpu::BindGroupLayoutEntry sampler_entry{ ::wgpu::Default };
+      sampler_entry.binding = 9;
+      sampler_entry.visibility = ::wgpu::ShaderStage::Compute;
+      sampler_entry.sampler.type = ::wgpu::SamplerBindingType::NonFiltering;
+      return sampler_entry;
+    }(),
   };
   ::wgpu::BindGroupLayout group2 =
       device.createBindGroupLayout([&] -> ::wgpu::BindGroupLayoutDescriptor {
@@ -180,6 +203,8 @@ std::expected<ComputeBindGroups, Error> CreateComputeBindGroups(
     std::size_t mat_offset,
     ::wgpu::Texture& material_texture_array,
     ::wgpu::Sampler& material_texture_sampler,
+    ::wgpu::Texture& environment_texture,
+    ::wgpu::Sampler& environment_texture_sampler,
     ComputeBindGroupLayouts& layouts,
     ::wgpu::Device& device) {
   /* Group 0 */
@@ -237,13 +262,16 @@ std::expected<ComputeBindGroups, Error> CreateComputeBindGroups(
                                         mat_offset,
                                         material_texture_array,
                                         material_texture_sampler,
+                                        environment_texture,
+                                        environment_texture_sampler,
                                         layouts,
                                         device);
   if (!group2) return std::unexpected(group2.error());
   return ComputeBindGroups{ group0,
                             group1,
                             group2->bindgroup,
-                            group2->material_texture_array_view };
+                            group2->material_texture_array_view,
+                            group2->environment_texture_view };
 }
 
 std::expected<void, Error> UpdateComputeBindGroup2(
@@ -256,6 +284,8 @@ std::expected<void, Error> UpdateComputeBindGroup2(
     std::size_t mat_offset,
     ::wgpu::Texture& material_texture_array,
     ::wgpu::Sampler& material_texture_sampler,
+    ::wgpu::Texture& environment_texture,
+    ::wgpu::Sampler& environment_texture_sampler,
     ComputeBindGroupLayouts& layouts,
     ::wgpu::Device& device) {
   auto group2 = CreateComputeBindGroup2(tlas_storage,
@@ -266,15 +296,20 @@ std::expected<void, Error> UpdateComputeBindGroup2(
                                         mat_offset,
                                         material_texture_array,
                                         material_texture_sampler,
+                                        environment_texture,
+                                        environment_texture_sampler,
                                         layouts,
                                         device);
   if (!group2) return std::unexpected(group2.error());
   if (bindgroups[2]) bindgroups[2].release();
   if (bindgroups.material_texture_array_view)
     bindgroups.material_texture_array_view.release();
+  if (bindgroups.environment_texture_view)
+    bindgroups.environment_texture_view.release();
   bindgroups[2] = group2->bindgroup;
   bindgroups.material_texture_array_view =
       group2->material_texture_array_view;
+  bindgroups.environment_texture_view = group2->environment_texture_view;
   return {};
 }
 
@@ -371,6 +406,8 @@ std::expected<ComputeBindGroup2, Error> CreateComputeBindGroup2(
     std::size_t mat_offset,
     ::wgpu::Texture& material_texture_array,
     ::wgpu::Sampler& material_texture_sampler,
+    ::wgpu::Texture& environment_texture,
+    ::wgpu::Sampler& environment_texture_sampler,
     ComputeBindGroupLayouts& layouts,
     ::wgpu::Device& device) {
   ::wgpu::TextureView material_texture_array_view =
@@ -387,10 +424,30 @@ std::expected<ComputeBindGroup2, Error> CreateComputeBindGroup2(
         desc.arrayLayerCount = WGPU_ARRAY_LAYER_COUNT_UNDEFINED;
         desc.aspect = ::wgpu::TextureAspect::All;
         return desc;
-      }());
+  }());
   if (auto e = global::error_stack.Pop()) return std::unexpected(*e);
 
-  std::array<::wgpu::BindGroupEntry, 8> group2entries{
+  ::wgpu::TextureView environment_texture_view =
+      environment_texture.createView([] -> ::wgpu::TextureViewDescriptor {
+        ::wgpu::TextureViewDescriptor desc{ ::wgpu::Default };
+        desc.label = ::wgpu::StringView{
+          "Crystal Graphics Environment Texture View"
+        };
+        desc.format = ::wgpu::TextureFormat::RGBA32Float;
+        desc.dimension = ::wgpu::TextureViewDimension::_2D;
+        desc.baseMipLevel = 0;
+        desc.mipLevelCount = 1;
+        desc.baseArrayLayer = 0;
+        desc.arrayLayerCount = 1;
+        desc.aspect = ::wgpu::TextureAspect::All;
+        return desc;
+      }());
+  if (auto e = global::error_stack.Pop()) {
+    material_texture_array_view.release();
+    return std::unexpected(*e);
+  }
+
+  std::array<::wgpu::BindGroupEntry, 10> group2entries{
     /* TLAS Nodes */
     [&] -> ::wgpu::BindGroupEntry {
       ::wgpu::BindGroupEntry bvh{ ::wgpu::Default };
@@ -458,6 +515,20 @@ std::expected<ComputeBindGroup2, Error> CreateComputeBindGroup2(
       sampler.sampler = material_texture_sampler;
       return sampler;
     }(),
+    /* Environment Texture */
+    [&] -> ::wgpu::BindGroupEntry {
+      ::wgpu::BindGroupEntry texture{ ::wgpu::Default };
+      texture.binding = 8;
+      texture.textureView = environment_texture_view;
+      return texture;
+    }(),
+    /* Environment Texture Sampler */
+    [&] -> ::wgpu::BindGroupEntry {
+      ::wgpu::BindGroupEntry sampler{ ::wgpu::Default };
+      sampler.binding = 9;
+      sampler.sampler = environment_texture_sampler;
+      return sampler;
+    }(),
   };
   ::wgpu::BindGroup group2{
     device.createBindGroup([&] -> ::wgpu::BindGroupDescriptor {
@@ -473,9 +544,12 @@ std::expected<ComputeBindGroup2, Error> CreateComputeBindGroup2(
   };
   if (auto e = global::error_stack.Pop()) {
     material_texture_array_view.release();
+    environment_texture_view.release();
     return std::unexpected(*e);
   }
-  return ComputeBindGroup2{ group2, material_texture_array_view };
+  return ComputeBindGroup2{ group2,
+                            material_texture_array_view,
+                            environment_texture_view };
 }
 
 }  // namespace crystal::graphics::wgpu
