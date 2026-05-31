@@ -7,8 +7,8 @@ namespace crystal::graphics::wgpu::global {
 
 inline ErrorStack error_stack{};
 
-constexpr uint32_t resolution_width = 1920;
-constexpr uint32_t resolution_height = 1080;
+constexpr uint32_t resolution_width = 1280;
+constexpr uint32_t resolution_height = 720;
 
 }  // namespace crystal::graphics::wgpu::global
 

@@ -4,5 +4,6 @@
 build
 debug
 dxc
-asset
-*.spirv
+asset/*
+*.wgsl
+__pycache__

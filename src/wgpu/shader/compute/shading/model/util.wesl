@@ -1,7 +1,33 @@
 import package::compute::math;
-import package::compute::structural;
 import super::super::material::{Material, IOR, IORChannel};
-import super::super::model_sample::ModelSample;
+
+fn orientedNormal(curr_dir: math::Vec, normal: math::Vec) -> math::Vec {
+    return select(normal, -normal, dot(curr_dir, normal) > 0.0f);
+}
+
+fn relIor(
+    shading_norm: math::Vec,
+    curr_dir: math::Vec,
+    material: Material
+) -> IOR {
+    if dot(shading_norm, curr_dir) < 0 {
+        return invIor(material.ior);
+    }
+    return material.ior;
+}
+
+fn invIor(ior: IOR) -> IOR {
+    let norm_sq: vec3f = vec3f(
+        ior.r.re * ior.r.re + ior.r.im * ior.r.im,
+        ior.g.re * ior.g.re + ior.g.im * ior.g.im,
+        ior.b.re * ior.b.re + ior.b.im * ior.b.im,
+    );
+    return IOR(
+        IORChannel(ior.r.re / norm_sq.r, -ior.r.im / norm_sq.r),
+        IORChannel(ior.g.re / norm_sq.g, -ior.g.im / norm_sq.g),
+        IORChannel(ior.b.re / norm_sq.b, -ior.b.im / norm_sq.b),
+    );
+}
 
 const FRESNEL_EPSILON: f32 = 1e-6f;
 
@@ -23,9 +49,9 @@ fn fresnelReflectanceChannel(
     normal: vec3f,
     material_ior: IORChannel
 ) -> f32 {
-    let outside = dot(curr_dir, normal) >= 0.0f;
+    let outside = dot(curr_dir, normal) < 0.0f;
     let facing_normal = select(-normal, normal, outside);
-    let incident_cosine = clamp(dot(curr_dir, facing_normal), 0.0f, 1.0f);
+    let incident_cosine = clamp(dot(-curr_dir, facing_normal), 0.0f, 1.0f);
 
     if material_ior.im > FRESNEL_EPSILON {
         return complexFresnelReflectance(incident_cosine, material_ior);
@@ -65,11 +91,9 @@ fn complexFresnelReflectance(cosine: f32, material_ior: IORChannel) -> f32 {
     let ior_norm_sq = real_sq + imaginary_sq;
     let two_real_cosine = 2.0f * real_ior * cosine;
 
-    let perpendicular_reflectance =
-        (ior_norm_sq - two_real_cosine + cosine_sq)
+    let perpendicular_reflectance = (ior_norm_sq - two_real_cosine + cosine_sq)
         / max(ior_norm_sq + two_real_cosine + cosine_sq, FRESNEL_EPSILON);
-    let parallel_reflectance =
-        (ior_norm_sq * cosine_sq - two_real_cosine + 1.0f)
+    let parallel_reflectance = (ior_norm_sq * cosine_sq - two_real_cosine + 1.0f)
         / max(ior_norm_sq * cosine_sq + two_real_cosine + 1.0f, FRESNEL_EPSILON);
 
     return clamp(

@@ -2,10 +2,10 @@ import package::compute::math;
 import package::compute::structural;
 import super::super::material::Material;
 import super::super::model_sample::ModelSample;
-import super::util::{fresnelReflectance};
+import super::util::{fresnelReflectance, orientedNormal};
 
 /* Sample Function */
-fn specularSample(
+fn sample(
     surface_pos: structural::SurfacePos,
     curr_dir: math::Vec,
     material: Material
@@ -20,11 +20,8 @@ fn specularDir(
     surface_pos: structural::SurfacePos,
     curr_dir: math::Vec,
 ) -> math::Vec {
-    let next_dir = reflect(-curr_dir, orientedNormal(curr_dir, surface_pos.shading_norm));
+    let next_dir = reflect(curr_dir, orientedNormal(curr_dir, surface_pos.shading_norm));
     return next_dir;
-}
-fn orientedNormal(curr_dir: vec3f, normal: vec3f) -> vec3f {
-    return select(-normal, normal, dot(curr_dir, normal) >= 0.0f);
 }
 
 fn specularDist(
@@ -32,9 +29,10 @@ fn specularDist(
     curr_dir: math::Vec,
     material: Material
 ) -> vec3f {
+    let normal = orientedNormal(curr_dir, surface_pos.shading_norm);
     let fresnel_reflectance = fresnelReflectance(
         curr_dir,
-        surface_pos.shading_norm,
+        normal,
         material.ior
     );
     return fresnel_reflectance;

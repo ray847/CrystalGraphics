@@ -1,0 +1,176 @@
+direction: down
+
+gltf: {
+  label: "glTF Material Properties"
+
+  base: {
+    label: "Base parameters"
+    shape: rectangle
+
+    baseColor: "baseColor"
+    metallic: "metallic"
+    roughness: "roughness"
+    alpha: "alpha / opacity"
+  }
+
+  extensions: {
+    label: "Optional extensions"
+    shape: rectangle
+
+    ior: "KHR_materials_ior\nior"
+    transmission: "KHR_materials_transmission\ntransmission"
+    volume: "KHR_materials_volume\nattenuationColor\nattenuationDistance\nthickness"
+    specular: "KHR_materials_specular\nspecularFactor\nspecularColor"
+    anisotropy: "KHR_materials_anisotropy\nanisotropyStrength\nanisotropyRotation"
+    clearcoat: "KHR_materials_clearcoat\nclearcoatFactor\nclearcoatRoughness"
+  }
+}
+
+coeffs: {
+  label: "Physics / Reflection Model Coefficients"
+
+  colors: {
+    label: "Color / reflectance coefficients"
+    shape: rectangle
+
+    diffuse: "diffuse_reflectance\n= baseColor * (1 - metallic)"
+    f0: "specular_F0\n= mix(dielectric_F0, baseColor, metallic)"
+    f90: "specular_F90\n≈ 1"
+  }
+
+  fresnel: {
+    label: "Fresnel / IOR coefficients"
+    shape: rectangle
+
+    ior: "ior\n= extension value or 1.5"
+    dielectricF0: "dielectric_F0\n= ((ior - 1) / (ior + 1))²"
+    eta: "eta_i / eta_t\nfor refraction"
+  }
+
+  roughness: {
+    label: "Microfacet roughness coefficients"
+    shape: rectangle
+
+    alpha: "alpha\n= roughness²"
+    alphaX: "alpha_x"
+    alphaY: "alpha_y"
+  }
+
+  transmission: {
+    label: "Transmission / volume coefficients"
+    shape: rectangle
+
+    transWeight: "transmission_weight"
+    sigmaA: "absorption coefficient σₐ\n= -ln(attenuationColor)\n  / attenuationDistance"
+  }
+
+  coating: {
+    label: "Extra layer coefficients"
+    shape: rectangle
+
+    coatWeight: "clearcoat_weight"
+    coatAlpha: "clearcoat_alpha\n= clearcoatRoughness²"
+    coatF0: "clearcoat_F0\n≈ 0.04"
+  }
+}
+
+distribution: {
+  label: "Reflection Model Distribution Values"
+
+  fresnelEval: {
+    label: "Fresnel evaluation"
+    shape: rectangle
+
+    F: "F(cosθ)\nangle-dependent reflectance"
+    F_schlick: "Schlick:\nF = F0 + (F90 - F0)(1 - cosθ)^5"
+    F_dielectric: "Exact dielectric Fresnel\nfrom eta_i, eta_t"
+  }
+
+  ggx: {
+    label: "GGX microfacet distribution"
+    shape: rectangle
+
+    D: "D_GGX(m, alpha_x, alpha_y)\nnormal distribution"
+    G: "G_Smith(wi, wo, alpha_x, alpha_y)\nmasking-shadowing"
+    pdf: "microfacet sampling PDF"
+  }
+
+  lobes: {
+    label: "BSDF / BTDF lobe values"
+    shape: rectangle
+
+    diffuse: "diffuse BRDF\n= diffuse_reflectance / π"
+    specular: "rough reflection BRDF\n= F · D · G / denominator"
+    refract: "rough refraction BTDF\n= transmission · GGX_BTDF"
+    volume: "volume transmittance\n= exp(-σₐ · distance)"
+    clearcoat: "clearcoat BRDF\n= clearcoat_weight · GGX_clearcoat"
+  }
+
+  sampling: {
+    label: "Sampling probabilities"
+    shape: rectangle
+
+    pReflect: "p_reflect ∝ luminance(F)"
+    pTransmit: "p_transmit ∝ transmission · (1 - F)"
+    pDiffuse: "p_diffuse ∝ (1 - transmission) · (1 - F)"
+  }
+}
+
+# Step 1: glTF -> coefficients
+gltf -> coeffs: "Step 1:\nmaterial parameter conversion"
+
+gltf.base.baseColor -> coeffs.colors.diffuse
+gltf.base.baseColor -> coeffs.colors.f0
+gltf.base.metallic -> coeffs.colors.diffuse
+gltf.base.metallic -> coeffs.colors.f0
+gltf.base.roughness -> coeffs.roughness.alpha
+
+gltf.extensions.ior -> coeffs.fresnel.ior
+coeffs.fresnel.ior -> coeffs.fresnel.dielectricF0
+coeffs.fresnel.ior -> coeffs.fresnel.eta
+coeffs.fresnel.dielectricF0 -> coeffs.colors.f0
+
+gltf.extensions.specular -> coeffs.colors.f0
+gltf.extensions.transmission -> coeffs.transmission.transWeight
+gltf.extensions.volume -> coeffs.transmission.sigmaA
+gltf.extensions.anisotropy -> coeffs.roughness.alphaX
+gltf.extensions.anisotropy -> coeffs.roughness.alphaY
+gltf.extensions.clearcoat -> coeffs.coating
+
+coeffs.roughness.alpha -> coeffs.roughness.alphaX: "isotropic default"
+coeffs.roughness.alpha -> coeffs.roughness.alphaY: "isotropic default"
+
+# Step 2: coefficients -> distribution values
+coeffs -> distribution: "Step 2:\nBSDF/BTDF evaluation at a shading point"
+
+coeffs.colors.f0 -> distribution.fresnelEval.F_schlick
+coeffs.colors.f90 -> distribution.fresnelEval.F_schlick
+coeffs.fresnel.eta -> distribution.fresnelEval.F_dielectric
+distribution.fresnelEval.F_schlick -> distribution.fresnelEval.F
+distribution.fresnelEval.F_dielectric -> distribution.fresnelEval.F
+
+coeffs.roughness.alphaX -> distribution.ggx.D
+coeffs.roughness.alphaY -> distribution.ggx.D
+coeffs.roughness.alphaX -> distribution.ggx.G
+coeffs.roughness.alphaY -> distribution.ggx.G
+
+distribution.fresnelEval.F -> distribution.lobes.specular
+distribution.ggx.D -> distribution.lobes.specular
+distribution.ggx.G -> distribution.lobes.specular
+
+coeffs.colors.diffuse -> distribution.lobes.diffuse
+
+coeffs.transmission.transWeight -> distribution.lobes.refract
+coeffs.fresnel.eta -> distribution.lobes.refract
+distribution.ggx.D -> distribution.lobes.refract
+distribution.ggx.G -> distribution.lobes.refract
+
+coeffs.transmission.sigmaA -> distribution.lobes.volume
+
+coeffs.coating -> distribution.lobes.clearcoat
+
+distribution.fresnelEval.F -> distribution.sampling.pReflect
+distribution.fresnelEval.F -> distribution.sampling.pTransmit
+distribution.fresnelEval.F -> distribution.sampling.pDiffuse
+coeffs.transmission.transWeight -> distribution.sampling.pTransmit
+coeffs.transmission.transWeight -> distribution.sampling.pDiffuse

@@ -1,20 +1,22 @@
 import package::compute::math;
 import package::compute::structural;
-import super::specular::{orientedNormal};
 import super::super::material::Material;
 import super::super::model_sample::ModelSample;
-import super::util::{fresnelReflectance};
+import super::util::{fresnelReflectance, orientedNormal};
 
 const VNDF_EPSILON: f32 = 1e-6f;
 
 /* Sample Function */
-fn roughSample(
+fn sample(
     surface_pos: structural::SurfacePos,
     curr_dir: math::Vec,
     material: Material
 ) -> ModelSample {
-    let micro_norm = sampleNorm(surface_pos, curr_dir, material);
-    let next_dir = reflect(-curr_dir, micro_norm);
+    let micro_norm = orientedNormal(
+        curr_dir,
+        sampleNorm(surface_pos, curr_dir, material)
+    );
+    let next_dir = reflect(curr_dir, micro_norm);
     let macro_norm = orientedNormal(curr_dir, surface_pos.shading_norm);
     if dot(next_dir, macro_norm) <= 0.0f {
         return ModelSample(next_dir, vec3f(0.0f));
@@ -38,7 +40,8 @@ fn sampleNorm(
 ) -> math::Vec {
     let macro_norm = orientedNormal(curr_dir, surface_pos.shading_norm);
     let tangent_space = math::makeTangentSpace(macro_norm);
-    let local_curr_dir = normalize(transpose(tangent_space) * curr_dir);
+    let view_dir = -curr_dir;
+    let local_curr_dir = normalize(transpose(tangent_space) * view_dir);
     let alpha = material.microfacet_roughness;
 
     let stretched_curr_dir = normalize(vec3f(
@@ -90,7 +93,7 @@ fn reflectDist(
     next_dir: math::Vec,
     material: Material
 ) -> vec3f {
-    let curr_macro_projection = max(dot(curr_dir, macro_norm), VNDF_EPSILON);
+    let curr_macro_projection = max(dot(-curr_dir, macro_norm), VNDF_EPSILON);
     let next_macro_projection = max(dot(next_dir, macro_norm), VNDF_EPSILON);
 
     return ggxNormDist(micro_norm, macro_norm, material)
@@ -107,9 +110,9 @@ fn reflectPdfWeight(
     next_dir: math::Vec,
     material: Material
 ) -> f32 {
-    let curr_macro_projection = max(dot(curr_dir, macro_norm), VNDF_EPSILON);
+    let curr_macro_projection = max(dot(-curr_dir, macro_norm), VNDF_EPSILON);
     let next_macro_projection = max(dot(next_dir, macro_norm), 0.0f);
-    let curr_micro_projection = max(dot(curr_dir, micro_norm), VNDF_EPSILON);
+    let curr_micro_projection = max(dot(-curr_dir, micro_norm), VNDF_EPSILON);
     let visible_normal_pdf = ggxNormDist(micro_norm, macro_norm, material)
         * ggxMaskUniDir(acos(curr_macro_projection), material)
         * curr_micro_projection

@@ -13,12 +13,17 @@ fn decode(packed_material: PackedMaterial, uvs: array<vec2f, 2>) -> Material {
     let base_color = baseColor(packed_material, uvs);
     let roughness = roughness(packed_material, uvs);
     let metallic = metallic(packed_material, uvs);
+    let transmission = transmission(packed_material, uvs);
     let raw_ior = packed_material.ior;
     let ior: IOR = materialIor(raw_ior, base_color.rgb, metallic);
+    let is_transmissive = metallic == 0.0f && transmission > 0.0f;
     return Material(
-        (1.0f - metallic) * base_color,
+        (1.0f - metallic) * (1.0f - transmission) * base_color,
         roughness * roughness,
-        ior
+        ior,
+        transmission,
+        is_transmissive,
+        false
     );
 }
 
@@ -37,6 +42,9 @@ struct Material {
     diffuse_reflectance: vec4f,
     microfacet_roughness: f32,
     ior: IOR,
+    transmission: f32,
+    thin_transmission: bool,
+    volumn_transmission: bool,
 };
 
 fn materialIor(real_ior: f32, base_color: vec3f, metallic: f32) -> IOR {

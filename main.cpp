@@ -4,6 +4,7 @@
 #include <cmath>
 #include <cstdlib>
 #include <iostream>
+#include <numbers>
 
 int main() {
   auto init_res = crystal::graphics::EnvInit();
@@ -13,11 +14,11 @@ int main() {
   }
   // auto scene = crystal::graphics::LoadScene(
   //     "asset/ABeautifulGame/glTF/ABeautifulGame.gltf");
-  // auto scene =
-  //     crystal::graphics::LoadScene("asset/FlightHelmet/glTF/FlightHelmet.gltf");
+  auto scene =
+      crystal::graphics::LoadScene("asset/FlightHelmet/glTF/FlightHelmet.gltf");
   // auto scene = crystal::graphics::LoadScene("asset/Sponza/glTF/Sponza.gltf");
-  auto scene = crystal::graphics::LoadScene("asset/CompareMetallic/glTF/"
-                                            "CompareMetallic.gltf");
+  // auto scene = crystal::graphics::LoadScene("asset/CompareTransmission/glTF/"
+  //                                           "CompareTransmission.gltf");
   if (!scene) {
     std::cout << scene.error() << std::endl;
     return EXIT_FAILURE;
@@ -31,9 +32,9 @@ int main() {
                       std::chrono::high_resolution_clock::now() - st)
                       .count()
                 / 1000 / 5;
-    float dis = 2.0f;
+    float dis = 0.5f;
     crystal::graphics::Camera camera{
-      .position = { dis * std::cos(angle), dis * std::sin(angle), 0.0f },
+      .position = { dis * std::cos(angle), dis * std::sin(angle), 0.5f },
       .direction = { -std::cos(angle), -std::sin(angle), 0 },
       .viewport = { 1.960, 1.080 }
     };

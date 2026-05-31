@@ -1,0 +1,38 @@
+grid-columns: 2
+
+**: {
+  shape: rectangle
+}
+
+reflection: {
+  dielectric: {
+    grid-columns: 1
+    diffuse: |latex
+      \displaylines{
+      \large{\text{Diffuse}} \\
+      (1 - metallic) (1 - transmission)
+      }
+    |
+    specular: |latex
+      \displaylines{
+      \large{\text{Specular}} \\
+      (1 - metallic)specular
+      }
+    |
+    rough: |latex
+      \displaylines{
+      \large{\text{Rough}} \\
+      
+      }
+    |
+  }
+  metallic: {
+    specular
+    rough
+  }
+}
+transmission: {
+  diffuse
+  specular
+  rough
+}

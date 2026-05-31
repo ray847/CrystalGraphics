@@ -1,0 +1,111 @@
+direction: down
+
+classes: {
+  data: {
+    style: {
+      border-radius: 1000
+    }
+  }
+  multidata: {
+    style: {
+      border-radius: 1000
+      multiple: true
+    }
+  }
+  process: {
+    shape: parallelogram
+  }
+  stage: {
+    shape: step
+  }
+}
+
+Ray -> Hit Detection
+Hit Detection -> Hit Info
+Reflection.Diffuse -> Passive
+Reflection.Rough -> Passive
+Reflection.Specular -> Passive
+Reflection.Conductor -> Passive
+Transmission.Diffuse -> Passive
+Transmission.Rough -> Passive
+Transmission.Specular -> Passive
+Passive -> Emittor
+Emission -> Emittor
+Emittor -> Travel -> Radiance
+
+Ray.class: data
+Radiance.class: data
+Passive.class: data
+Emission.class: data
+
+Hit Detection
+
+Hit Info: {
+  class: data
+  position.class: data
+  normal.class: data
+  instance.class: data
+  uv.class: data
+}
+
+Hit Info.normal -> Normal Map
+Normal Map.class: process
+Hit Info.instance -> Material
+Hit Info.uv -> Material
+Hit Info.position -> Sampler
+Normal Map -> Sampler
+Material -> Emission
+Material -> Sampler
+
+Material.class: data
+
+Sampler: {
+  Diffuse.class: process
+  Rough.class: process
+  Specular.class: process
+}
+
+Sampler -> Reflection.Samples -> Ray
+Sampler -> Transmission.Samples -> Ray
+
+Reflection: {
+  Samples -> Reciever
+  Reciever -> Diffuse
+  Reciever -> Rough
+  Reciever -> Specular
+  Reciever -> Conductor
+
+  Samples: {
+    class: data
+    Diffuse Rays.class: multidata
+    Rough Rays.class: multidata
+    Specular Ray.class: data
+  }
+
+  Reciever.class: process
+
+  Diffuse.class: process
+  Rough.class: process
+  Specular.class: process
+  Conductor.class: process
+}
+
+Transmission: {
+  Samples -> Diffuse
+  Samples -> Rough
+  Samples -> Specular
+
+  Samples: {
+    class: data
+    Diffuse Rays.class: multidata
+    Rough Rays.class: multidata
+    Specular Rays.class: data
+  }
+  Diffuse.class: process
+  Rough.class: process
+  Specular.class: process
+}
+
+Emittor.class: process
+
+Travel.class: process

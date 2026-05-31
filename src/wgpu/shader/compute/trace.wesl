@@ -46,7 +46,7 @@ fn trace(ray: math::Ray) -> physics::Radiance {
                 top--;
                 continue;
             } else {
-                let curr_dir = -stk[top].ray.dir;
+                let curr_dir = stk[top].ray.dir;
                 stk[top].sampled_rays = shading::sampleRays(
                     curr_dir,
                     stk[top].hit_info.surface_pos,
@@ -72,7 +72,7 @@ fn trace(ray: math::Ray) -> physics::Radiance {
         } else {
             /* Return */
             /* Input radiance. */
-            let curr_dir = -stk[top].ray.dir;
+            let curr_dir = stk[top].ray.dir;
             ret = shading::collect(
                 curr_dir,
                 stk[top].sampled_rays

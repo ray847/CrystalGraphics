@@ -1,0 +1,78 @@
+direction: down
+
+classes: {
+  DataPath: {
+    style.fill: blue
+  }
+}
+
+structural -- math
+
+math: {
+  *.shape: class
+  Ray: {
+    pos: vec3f
+    dir: vec3f
+  }
+}
+
+physics: {
+  *.shape: class
+  Radiance.label: "Radiance (vec3f)"
+  Luminance.label: "Luminance (vec3f)"
+}
+
+structural: {
+  HitInfo -- TravelInfo
+  HitInfo -- SurfacePos
+  TLASNode: {
+    shape: class
+    class: DataPath
+    lb: vec3f
+    child: u32
+    ub: vec3f
+    inst_idx: u32
+  }
+  BLASNode: {
+    shape: class
+    class: DataPath
+    lb: vec3f
+    child: u32
+    ub: vec3f
+    tri_count: u32
+  }
+  Vertex: {
+    shape: class
+    class: DataPath
+    pos: vec3f
+    norm: vec3f
+    uvs: array<vec2f>
+  }
+  Instance: {
+    shape: class
+    class: DataPath
+    inv_trans: mat4f
+    blas_root: u32
+    material_idx: u32
+  }
+  TravelInfo: {
+    shape: class
+    stop: bool
+    dist: f32
+  }
+  SurfacePos: {
+    shape: class
+    pos: vec3f
+    shading_norm: vec3f
+    geometry_norm: v3c3f
+  }
+  HitInfo: {
+    shape: class
+    travel_info: TravelInfo
+    surface_pos: SurfacePos
+  }
+}
+
+shade: {
+  *.shape: class
+}

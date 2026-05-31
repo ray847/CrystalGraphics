@@ -4,7 +4,7 @@ import super::super::material::Material;
 import super::super::model_sample::ModelSample;
 
 /* Sample Function */
-fn diffuseSample(
+fn sample(
     surface_pos: structural::SurfacePos,
     curr_dir: math::Vec,
     material: Material
