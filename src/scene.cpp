@@ -4,12 +4,12 @@
 
 #include <algorithm>
 #include <array>
+#include <cctype>
 #include <cmath>
 #include <cstddef>
-#include <cctype>
 #include <cstdlib>
-#include <fstream>
 #include <filesystem>
+#include <fstream>
 #include <glm/ext/matrix_float4x4.hpp>
 #include <glm/ext/vector_float3.hpp>
 #include <glm/geometric.hpp>
@@ -67,8 +67,7 @@ std::vector<std::byte> PercentDecodeBytes(std::string_view value) {
         continue;
       }
     }
-    res.push_back(static_cast<std::byte>(
-        static_cast<unsigned char>(value[i])));
+    res.push_back(static_cast<std::byte>(static_cast<unsigned char>(value[i])));
   }
   return res;
 }
@@ -109,8 +108,7 @@ std::expected<std::vector<std::byte>, Error> DecodeBase64(
     accum = (accum << 6) | decoded;
     bits += 6;
     if (bits >= 0) {
-      res.push_back(
-          static_cast<std::byte>((accum >> bits) & 0xff));
+      res.push_back(static_cast<std::byte>((accum >> bits) & 0xff));
       bits -= 8;
     }
   }
@@ -151,8 +149,7 @@ std::expected<std::vector<std::byte>, Error> ReadBinaryFile(
 }
 
 std::expected<std::vector<std::byte>, Error> LoadDataUri(
-    std::string_view uri,
-    std::string& mime_type) {
+    std::string_view uri, std::string& mime_type) {
   constexpr std::string_view prefix = "data:";
   std::size_t comma = uri.find(',');
   if (!uri.starts_with(prefix) || comma == std::string_view::npos)
@@ -202,8 +199,8 @@ std::expected<std::vector<std::byte>, Error> LoadImageBytes(
   return ReadBinaryFile(source_path);
 }
 
-std::expected<TextureData, Error> LoadTexture(const cgltf_texture& texture,
-                                              const std::filesystem::path& file) {
+std::expected<TextureData, Error> LoadTexture(
+    const cgltf_texture& texture, const std::filesystem::path& file) {
   TextureData res;
   if (texture.name) res.name = texture.name;
   if (texture.sampler) {
@@ -281,11 +278,13 @@ std::optional<std::string> FindJsonStringProperty(std::string_view json,
   std::size_t pos = 0;
   while ((pos = json.find(quoted_key, pos)) != std::string_view::npos) {
     pos += quoted_key.size();
-    while (pos < json.size() && std::isspace(static_cast<unsigned char>(json[pos])))
+    while (pos < json.size()
+           && std::isspace(static_cast<unsigned char>(json[pos])))
       ++pos;
     if (pos >= json.size() || json[pos] != ':') continue;
     ++pos;
-    while (pos < json.size() && std::isspace(static_cast<unsigned char>(json[pos])))
+    while (pos < json.size()
+           && std::isspace(static_cast<unsigned char>(json[pos])))
       ++pos;
     if (pos >= json.size() || json[pos] != '"') continue;
     ++pos;
@@ -307,8 +306,7 @@ std::optional<std::string> FindJsonStringProperty(std::string_view json,
 }
 
 std::optional<std::filesystem::path> ResolveEnvironmentPath(
-    std::string_view json,
-    const std::filesystem::path& gltf_file) {
+    std::string_view json, const std::filesystem::path& gltf_file) {
   constexpr std::array<std::string_view, 6> keys{
     "environment_hdr",
     "environmentHdr",
@@ -329,16 +327,15 @@ std::optional<std::filesystem::path> ResolveEnvironmentPath(
 }
 
 std::optional<std::filesystem::path> LoadEnvironmentHdrFile(
-    const cgltf_data& data,
-    const std::filesystem::path& gltf_file) {
-  auto read_extras = [&](const cgltf_extras& extras)
-      -> std::optional<std::filesystem::path> {
+    const cgltf_data& data, const std::filesystem::path& gltf_file) {
+  auto read_extras =
+      [&](const cgltf_extras& extras) -> std::optional<std::filesystem::path> {
     if (!extras.data) return std::nullopt;
     return ResolveEnvironmentPath(extras.data, gltf_file);
   };
-  auto read_extensions = [&](const cgltf_extension* extensions,
-                             cgltf_size extension_count)
-      -> std::optional<std::filesystem::path> {
+  auto read_extensions =
+      [&](const cgltf_extension* extensions,
+          cgltf_size extension_count) -> std::optional<std::filesystem::path> {
     for (cgltf_size i = 0; i < extension_count; ++i) {
       if (!extensions[i].data) continue;
       auto path = ResolveEnvironmentPath(extensions[i].data, gltf_file);
@@ -348,8 +345,8 @@ std::optional<std::filesystem::path> LoadEnvironmentHdrFile(
   };
 
   if (auto path = read_extras(data.extras)) return path;
-  if (auto path = read_extensions(data.data_extensions,
-                                  data.data_extensions_count))
+  if (auto path =
+          read_extensions(data.data_extensions, data.data_extensions_count))
     return path;
   if (data.scene) {
     if (auto path = read_extras(data.scene->extras)) return path;
@@ -402,8 +399,7 @@ std::optional<float> ParseJsonFloat(std::string_view json, std::size_t& pos) {
 }
 
 std::optional<std::array<float, 4>> FindFirstFloat4Property(
-    std::string_view json,
-    std::string_view property) {
+    std::string_view json, std::string_view property) {
   std::string quoted_property = "\"" + std::string(property) + "\"";
   std::size_t pos = json.find(quoted_property);
   if (pos == std::string_view::npos) return std::nullopt;
@@ -441,7 +437,8 @@ std::optional<std::array<cgltf_size, 6>> FindFirstSpecularImageSet(
   std::array<cgltf_size, 6> image_indices{};
   for (cgltf_size i = 0; i < image_indices.size(); ++i) {
     SkipJsonWhitespace(json, pos);
-    if (pos >= json.size() || !std::isdigit(static_cast<unsigned char>(json[pos])))
+    if (pos >= json.size()
+        || !std::isdigit(static_cast<unsigned char>(json[pos])))
       return std::nullopt;
 
     cgltf_size value = 0;
@@ -470,8 +467,7 @@ glm::vec3 ImageTexel(const DecodedFloatImage& image, float u, float v) {
   std::uint32_t y = std::min(
       image.height - 1,
       static_cast<std::uint32_t>(v * static_cast<float>(image.height)));
-  std::size_t offset =
-      (static_cast<std::size_t>(y) * image.width + x) * 4;
+  std::size_t offset = (static_cast<std::size_t>(y) * image.width + x) * 4;
   return glm::vec3{
     image.rgba32f[offset + 0],
     image.rgba32f[offset + 1],
@@ -522,14 +518,13 @@ glm::vec3 SampleCube(const std::array<DecodedFloatImage, 6>& faces,
 }
 
 glm::vec3 EngineToGltfDirection(glm::vec3 dir) {
-  return glm::vec3{ dir.x, dir.z, -dir.y };
+  return glm::vec3{ dir.x, -dir.z, dir.y };
 }
 
 glm::vec3 RotateVector(std::array<float, 4> rotation, glm::vec3 dir) {
   glm::vec3 imaginary{ rotation[0], rotation[1], rotation[2] };
   float real = rotation[3];
-  float norm =
-      glm::dot(imaginary, imaginary) + real * real;
+  float norm = glm::dot(imaginary, imaginary) + real * real;
   if (norm <= 0.0f) return dir;
 
   imaginary /= std::sqrt(norm);
@@ -580,11 +575,11 @@ EnvironmentTextureData CubeToEnvironmentTexture(
 }
 
 std::expected<TextureData, Error> LoadImageAsTextureData(
-    const cgltf_image& image,
-    const std::filesystem::path& file) {
+    const cgltf_image& image, const std::filesystem::path& file) {
   TextureData texture;
   if (image.name) texture.name = image.name;
-  auto bytes = LoadImageBytes(image, file, texture.mime_type, texture.source_path);
+  auto bytes =
+      LoadImageBytes(image, file, texture.mime_type, texture.source_path);
   if (!bytes) return std::unexpected(bytes.error());
   texture.encoded_data = std::move(*bytes);
   return texture;
@@ -593,10 +588,9 @@ std::expected<TextureData, Error> LoadImageAsTextureData(
 std::expected<std::optional<EnvironmentTextureData>, Error>
 LoadImageBasedEnvironmentTexture(const cgltf_data& data,
                                  const std::filesystem::path& file) {
-  const cgltf_extension* extension =
-      FindExtension(data.data_extensions,
-                    data.data_extensions_count,
-                    "EXT_lights_image_based");
+  const cgltf_extension* extension = FindExtension(data.data_extensions,
+                                                   data.data_extensions_count,
+                                                   "EXT_lights_image_based");
   if (extension == nullptr || extension->data == nullptr) return std::nullopt;
 
   auto image_indices = FindFirstSpecularImageSet(extension->data);
@@ -625,9 +619,8 @@ LoadImageBasedEnvironmentTexture(const cgltf_data& data,
 
     faces[i] = std::move(*image);
   }
-  return std::optional<EnvironmentTextureData>{
-    CubeToEnvironmentTexture(faces, rotation)
-  };
+  return std::optional<EnvironmentTextureData>{ CubeToEnvironmentTexture(
+      faces, rotation) };
 }
 
 MaterialTextureInfo DefaultTextureInfo() {
@@ -643,7 +636,8 @@ MaterialTextureInfo LoadTextureInfo(const cgltf_data& data,
                                     const cgltf_texture_view& view) {
   if (!view.texture) return DefaultTextureInfo();
   return MaterialTextureInfo{
-    .index = static_cast<std::int32_t>(cgltf_texture_index(&data, view.texture)),
+    .index =
+        static_cast<std::int32_t>(cgltf_texture_index(&data, view.texture)),
     .tex_coord = static_cast<size32_t>(std::max(view.texcoord, 0)),
     .scale = view.scale,
     .strength = view.scale,
@@ -751,8 +745,7 @@ Material LoadMaterial(const cgltf_data& data, const cgltf_material& material) {
         LoadTextureInfo(data, material.transmission.transmission_texture);
   }
   if (material.has_ior) res.ior = material.ior.ior;
-  if (material.has_dispersion)
-    res.dispersion = material.dispersion.dispersion;
+  if (material.has_dispersion) res.dispersion = material.dispersion.dispersion;
   if (material.has_volume) {
     res.thickness_factor = material.volume.thickness_factor;
     res.attenuation_color = {
@@ -784,8 +777,8 @@ Material LoadMaterial(const cgltf_data& data, const cgltf_material& material) {
         material.iridescence.iridescence_thickness_max;
     res.iridescence_texture =
         LoadTextureInfo(data, material.iridescence.iridescence_texture);
-    res.iridescence_thickness_texture =
-        LoadTextureInfo(data, material.iridescence.iridescence_thickness_texture);
+    res.iridescence_thickness_texture = LoadTextureInfo(
+        data, material.iridescence.iridescence_thickness_texture);
   }
   if (material.has_sheen) {
     res.sheen_color_factor = {

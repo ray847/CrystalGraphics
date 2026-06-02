@@ -17,13 +17,14 @@ fn decode(packed_material: PackedMaterial, uvs: array<vec2f, 2>) -> Material {
     let raw_ior = packed_material.ior;
     let ior: IOR = materialIor(raw_ior, base_color.rgb, metallic);
     let is_transmissive = metallic == 0.0f && transmission > 0.0f;
+    let emission = emission(packed_material, uvs);
     return Material(
         (1.0f - metallic) * (1.0f - transmission) * base_color,
         roughness * roughness,
         ior,
         transmission,
-        is_transmissive,
-        false
+        packed_material.thickness_factor > 0,
+        emission
     );
 }
 
@@ -43,8 +44,8 @@ struct Material {
     microfacet_roughness: f32,
     ior: IOR,
     transmission: f32,
-    thin_transmission: bool,
     volumn_transmission: bool,
+    emission: vec3f,
 };
 
 fn materialIor(real_ior: f32, base_color: vec3f, metallic: f32) -> IOR {
@@ -217,4 +218,18 @@ fn specular(material: PackedMaterial, uvs: array<vec2f, 2>) -> f32 {
         ).a;
     }
     return clamp(strength, 0.0f, 1.0f);
+}
+
+fn emission(material: PackedMaterial, uvs: array<vec2f, 2>) -> vec3f {
+    var strength = material.emissive_factor;
+    if material.emissive_texture.index >= 0 {
+        strength *= textureSampleLevel(
+            material_textures,
+            material_texture_sampler,
+            textureUv(uvs, material.emissive_texture.tex_coord),
+            material.emissive_texture.index,
+            0.0f,
+        ).rgb;
+    }
+    return max(strength * material.emissive_strength, vec3f(0));
 }

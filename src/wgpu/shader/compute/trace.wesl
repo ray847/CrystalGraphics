@@ -14,7 +14,7 @@ struct Stack {
     lod: lod::LOD,
     /* Local */
     hit_info: structural::HitInfo,
-    sampled_rays: shading::SampledRays,
+    shading_pass_context: shading::ShadingPassContext,
     iter: u32,
     in_recurse: bool,
     /* Return */
@@ -49,7 +49,7 @@ fn trace(ray: math::Ray) -> physics::Radiance {
                 continue;
             } else {
                 let curr_dir = stk[top].ray.dir;
-                stk[top].sampled_rays = shading::sampleRays(
+                stk[top].shading_pass_context = shading::forwardPass(
                     curr_dir,
                     stk[top].hit_info.surface_pos,
                     stk[top].lod
@@ -60,13 +60,15 @@ fn trace(ray: math::Ray) -> physics::Radiance {
         }
         /* Collect Return Value */
         else {
-            stk[top].sampled_rays.ray_radiance[stk[top].iter - 1] = ret;
+            stk[top].shading_pass_context.sampled_rays.ray_radiance[\
+                stk[top].iter - 1] = ret;
         }
 
         /* Sample Loop */
-        if stk[top].iter < stk[top].sampled_rays.count {
+        if stk[top].iter < stk[top].shading_pass_context.sampled_rays.count {
             /* Recursion Call */
-            stk[top + 1].ray = stk[top].sampled_rays.rays[stk[top].iter];
+            stk[top + 1].ray = \
+                stk[top].shading_pass_context.sampled_rays.rays[stk[top].iter];
             stk[top + 1].lod = lod::decr(stk[top].lod);
             stk[top].iter += 1;
             top++;
@@ -75,10 +77,7 @@ fn trace(ray: math::Ray) -> physics::Radiance {
             /* Return */
             /* Input radiance. */
             let curr_dir = stk[top].ray.dir;
-            ret = shading::collect(
-                curr_dir,
-                stk[top].sampled_rays
-            );
+            ret = shading::backwardPass(stk[top].shading_pass_context);
             stk[top] = Stack(); // clear stack frame
             top--;
             continue;

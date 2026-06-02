@@ -42,11 +42,11 @@ struct ModelSampleCounts {
 }
 
 fn sampleRays(
-    curr_dir: vec3f,
+    curr_dir: math::Vec,
     surface_pos: structural::SurfacePos,
+    material: Material,
     lod: lod::LOD
 ) -> SampledRays {
-    let material: Material = material(surface_pos.material_idx, surface_pos.uvs);
     let heuristics = modelHeuristics(material);
     let counts = modelSampleCounts(
         u32(lod::heuristic(lod) * f32(MAX_SAMPLE_COUNT)),
@@ -117,9 +117,9 @@ fn normalReflectanceChannel(channel: IORChannel) -> f32 {
     return clamp(
         (real_offset_low * real_offset_low + imaginary_squared)
             / max(
-                real_offset_high * real_offset_high + imaginary_squared,
-                MIN_MODEL_WEIGHT,
-            ),
+            real_offset_high * real_offset_high + imaginary_squared,
+            MIN_MODEL_WEIGHT,
+        ),
         0.0f,
         1.0f,
     );
@@ -176,14 +176,10 @@ fn modelSampleCounts(
 
     let available_float = f32(available_count);
     let diffuse_share = available_float * heuristics.diffuse / heuristic_sum;
-    let specular_reflect_share =
-        available_float * heuristics.specular_reflection / heuristic_sum;
-    let rough_reflect_share =
-        available_float * heuristics.rough_reflection / heuristic_sum;
-    let specular_transmit_share =
-        available_float * heuristics.specular_transmission / heuristic_sum;
-    let rough_transmit_share =
-        available_float * heuristics.rough_transmission / heuristic_sum;
+    let specular_reflect_share = available_float * heuristics.specular_reflection / heuristic_sum;
+    let rough_reflect_share = available_float * heuristics.rough_reflection / heuristic_sum;
+    let specular_transmit_share = available_float * heuristics.specular_transmission / heuristic_sum;
+    let rough_transmit_share = available_float * heuristics.rough_transmission / heuristic_sum;
 
     var counts = ModelSampleCounts(
         min(diffuse_desired, u32(diffuse_share)),
@@ -200,11 +196,9 @@ fn modelSampleCounts(
         - counts.rough_transmit;
 
     var diffuse_cap = diffuse_desired - counts.diffuse;
-    var specular_reflect_cap =
-        specular_reflect_desired - counts.specular_reflect;
+    var specular_reflect_cap = specular_reflect_desired - counts.specular_reflect;
     var rough_reflect_cap = rough_reflect_desired - counts.rough_reflect;
-    var specular_transmit_cap =
-        specular_transmit_desired - counts.specular_transmit;
+    var specular_transmit_cap = specular_transmit_desired - counts.specular_transmit;
     var rough_transmit_cap = rough_transmit_desired - counts.rough_transmit;
 
     var diffuse_remainder = select(

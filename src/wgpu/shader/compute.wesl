@@ -37,10 +37,10 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
 fn cameraRay(coord: vec2f) -> math::Ray {
     let dx: vec3f = normalize(
         cross(
-            vec3f(0, 0, 1),
-            camera.dir
+            camera.dir,
+            vec3f(0, 0, 1)
         )
     ) * camera.viewport.x;
-    let dy: vec3f = normalize(cross(dx, camera.dir)) * camera.viewport.y;
+    let dy: vec3f = normalize(cross(camera.dir, dx)) * camera.viewport.y;
     return math::Ray(camera.pos, normalize(camera.dir + coord.x * dx + coord.y * dy));
 }
