@@ -41,6 +41,7 @@ namespace {
 constexpr uint32_t kDefaultMaterialTextureSize = 1;
 constexpr uint32_t kDefaultMaterialTextureLayers = 1;
 constexpr uint32_t kDefaultEnvironmentTextureSize = 1;
+constexpr std::size_t kMinStorageBindingSize = 8;
 
 struct UploadTexture {
   uint32_t width = 1;
@@ -80,6 +81,15 @@ std::vector<std::byte> WhiteTexture() {
     std::byte{ 255 },
     std::byte{ 255 },
   };
+}
+
+std::size_t AlignStorageOffset(std::size_t offset,
+                               std::size_t min_offset_alignment) {
+  return (offset + min_offset_alignment - 1) & ~(min_offset_alignment - 1);
+}
+
+std::size_t StorageBindingSize(std::size_t size) {
+  return std::max(size, kMinStorageBindingSize);
 }
 
 }  // namespace
@@ -129,10 +139,13 @@ std::expected<Resources, Error> CreateResources(
       }());
   if (auto e = global::error_stack.Pop()) return std::unexpected(*e);
   /* Tlas Storage */
-  auto tlas_storage = CreateBVHStorage(min_offset_alignment + 4, device);
+  auto tlas_storage =
+      CreateBVHStorage(min_offset_alignment + kMinStorageBindingSize, device);
   if (!tlas_storage) return std::unexpected(tlas_storage.error());
   /* Blas Storage */
-  auto blas_storage = CreateBVHStorage(min_offset_alignment * 5 + 4, device);
+  auto blas_storage =
+      CreateBVHStorage(min_offset_alignment * 5 + kMinStorageBindingSize,
+                       device);
   if (!blas_storage) return std::unexpected(blas_storage.error());
   /* Material Textures */
   auto material_texture_array =
@@ -241,10 +254,10 @@ std::expected<bool, Error> AssertStorageSize(const SceneData& scene_data,
   std::size_t tlas_nodes_size = bvh.TLAS().Nodes().size() * sizeof(TLASNode);
   std::size_t tlas_inst_size = bvh.TLAS().Instances().size() * sizeof(Instance);
   std::size_t tlas_inst_offset =
-      std::max((tlas_nodes_size + min_offset_alignment - 1)
-                   & ~(min_offset_alignment - 1),
+      std::max(AlignStorageOffset(tlas_nodes_size, min_offset_alignment),
                resources.inst_offset);
-  std::size_t buffer_size = tlas_inst_offset + tlas_inst_size;
+  std::size_t buffer_size =
+      tlas_inst_offset + StorageBindingSize(tlas_inst_size);
   auto assert_tlas_res = assert_storage(resources.tlas_storage, buffer_size);
   if (!assert_tlas_res) return std::unexpected(assert_tlas_res.error());
   bool inst_offset_change = tlas_inst_offset != resources.inst_offset;
@@ -257,27 +270,32 @@ std::expected<bool, Error> AssertStorageSize(const SceneData& scene_data,
   std::size_t materials_size = materials.size() * sizeof(Material);
   std::size_t emissive_size = emissive_prims.size() * sizeof(EmissivePrim);
   std::size_t alias_size = alias_table.size() * sizeof(AliasTableEntry);
-  std::size_t idx_offset = std::max((blas_nodes_size + min_offset_alignment - 1)
-                                        & ~(min_offset_alignment - 1),
-                                    resources.idx_offset);
+  std::size_t idx_offset =
+      std::max(AlignStorageOffset(blas_nodes_size, min_offset_alignment),
+               resources.idx_offset);
   std::size_t vert_offset =
-      std::max((idx_offset + indices_size + min_offset_alignment - 1)
-                   & ~(min_offset_alignment - 1),
+      std::max(AlignStorageOffset(idx_offset
+                                      + StorageBindingSize(indices_size),
+                                  min_offset_alignment),
                resources.vert_offset);
   std::size_t mat_offset =
-      std::max((vert_offset + vertices_size + min_offset_alignment - 1)
-                   & ~(min_offset_alignment - 1),
+      std::max(AlignStorageOffset(vert_offset
+                                      + StorageBindingSize(vertices_size),
+                                  min_offset_alignment),
                resources.mat_offset);
   std::size_t emissive_offset =
-      std::max((mat_offset + materials_size + min_offset_alignment - 1)
-                   & ~(min_offset_alignment - 1),
+      std::max(AlignStorageOffset(mat_offset
+                                      + StorageBindingSize(materials_size),
+                                  min_offset_alignment),
                resources.emissive_offset);
   std::size_t alias_offset =
-      std::max((emissive_offset + emissive_size + min_offset_alignment - 1)
-                   & ~(min_offset_alignment - 1),
+      std::max(AlignStorageOffset(emissive_offset
+                                      + StorageBindingSize(emissive_size),
+                                  min_offset_alignment),
                resources.alias_offset);
   auto assert_blas_res =
-      assert_storage(resources.scene_storage, alias_offset + alias_size);
+      assert_storage(resources.scene_storage,
+                     alias_offset + StorageBindingSize(alias_size));
   bool idx_offset_change = idx_offset != resources.idx_offset;
   resources.idx_offset = idx_offset;
   bool vert_offset_change = vert_offset != resources.vert_offset;

@@ -2,6 +2,7 @@
 
 #include <webgpu/webgpu.h>
 
+#include <algorithm>
 #include <array>
 #include <cmath>
 
@@ -11,6 +12,16 @@
 #include "webgpu/webgpu.hpp"
 
 namespace crystal::graphics::wgpu {
+
+namespace {
+
+constexpr std::size_t kMinStorageBindingSize = 8;
+
+std::size_t StorageBindingSize(std::size_t size) {
+  return std::max(size, kMinStorageBindingSize);
+}
+
+}  // namespace
 
 struct ComputeBindGroup2 {
   ::wgpu::BindGroup bindgroup;
@@ -481,7 +492,7 @@ std::expected<ComputeBindGroup2, Error> CreateComputeBindGroup2(
       ::wgpu::BindGroupEntry bvh{ ::wgpu::Default };
       bvh.binding = 0;
       bvh.buffer = tlas_storage;
-      bvh.size = tlas_inst_offset;
+      bvh.size = StorageBindingSize(tlas_inst_offset);
       return bvh;
     }(),
     /* Instances */
@@ -490,7 +501,8 @@ std::expected<ComputeBindGroup2, Error> CreateComputeBindGroup2(
       bvh.binding = 1;
       bvh.buffer = tlas_storage;
       bvh.offset = tlas_inst_offset;
-      bvh.size = tlas_storage.getSize() - tlas_inst_offset;
+      bvh.size = StorageBindingSize(tlas_storage.getSize()
+                                    - tlas_inst_offset);
       return bvh;
     }(),
     /* BLAS Nodes */
@@ -499,7 +511,7 @@ std::expected<ComputeBindGroup2, Error> CreateComputeBindGroup2(
       bvh.binding = 2;
       bvh.buffer = blas_idx_vert_storage;
       bvh.offset = 0;
-      bvh.size = idx_offset;
+      bvh.size = StorageBindingSize(idx_offset);
       return bvh;
     }(),
     /* Indices */
@@ -508,7 +520,7 @@ std::expected<ComputeBindGroup2, Error> CreateComputeBindGroup2(
       indices.binding = 3;
       indices.buffer = blas_idx_vert_storage;
       indices.offset = idx_offset;
-      indices.size = vert_offset - idx_offset;
+      indices.size = StorageBindingSize(vert_offset - idx_offset);
       return indices;
     }(),
     /* Vertices */
@@ -517,7 +529,7 @@ std::expected<ComputeBindGroup2, Error> CreateComputeBindGroup2(
       vertices.binding = 4;
       vertices.buffer = blas_idx_vert_storage;
       vertices.offset = vert_offset;
-      vertices.size = mat_offset - vert_offset;
+      vertices.size = StorageBindingSize(mat_offset - vert_offset);
       return vertices;
     }(),
     /* Materials */
@@ -526,7 +538,7 @@ std::expected<ComputeBindGroup2, Error> CreateComputeBindGroup2(
       materials.binding = 5;
       materials.buffer = blas_idx_vert_storage;
       materials.offset = mat_offset;
-      materials.size = emissive_offset - mat_offset;
+      materials.size = StorageBindingSize(emissive_offset - mat_offset);
       return materials;
     }(),
     /* Material Texture Array */
@@ -563,7 +575,7 @@ std::expected<ComputeBindGroup2, Error> CreateComputeBindGroup2(
       emissive.binding = 10;
       emissive.buffer = blas_idx_vert_storage;
       emissive.offset = emissive_offset;
-      emissive.size = alias_offset - emissive_offset;
+      emissive.size = StorageBindingSize(alias_offset - emissive_offset);
       return emissive;
     }(),
     /* Emissive Alias Table */
@@ -572,7 +584,8 @@ std::expected<ComputeBindGroup2, Error> CreateComputeBindGroup2(
       alias.binding = 11;
       alias.buffer = blas_idx_vert_storage;
       alias.offset = alias_offset;
-      alias.size = blas_idx_vert_storage.getSize() - alias_offset;
+      alias.size = StorageBindingSize(blas_idx_vert_storage.getSize()
+                                      - alias_offset);
       return alias;
     }(),
   };

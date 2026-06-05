@@ -14,11 +14,12 @@ int main() {
   }
   // auto scene = crystal::graphics::LoadScene(
   //     "asset/ABeautifulGame/glTF/ABeautifulGame.gltf");
-  // auto scene =
-  //     crystal::graphics::LoadScene("asset/FlightHelmet/glTF/FlightHelmet.gltf");
+  auto scene =
+      crystal::graphics::LoadScene("asset/FlightHelmet/glTF/FlightHelmet.gltf");
   // auto scene = crystal::graphics::LoadScene("asset/Sponza/glTF/Sponza.gltf");
-  auto scene = crystal::graphics::LoadScene("asset/EmissiveStrengthTest/glTF/"
-                                            "EmissiveStrengthTest.gltf");
+  // auto scene =
+  // crystal::graphics::LoadScene("asset/EmissiveStrengthTest/glTF/"
+  //                                           "EmissiveStrengthTest.gltf");
   if (!scene) {
     std::cout << scene.error() << std::endl;
     return EXIT_FAILURE;
@@ -33,9 +34,9 @@ int main() {
                        .count()
                 / 1000 / 5;
     // angle = -std::numbers::pi / 2;
-    float dis = 10.0f;
+    float dis = 1.0f;
     crystal::graphics::Camera camera{
-      .position = { dis * std::cos(angle), dis * std::sin(angle), 0.0f },
+      .position = { dis * std::cos(angle), dis * std::sin(angle), 0.5f },
       .direction = { -std::cos(angle), -std::sin(angle), 0 },
       .viewport = { 1.960, 1.080 }
     };
