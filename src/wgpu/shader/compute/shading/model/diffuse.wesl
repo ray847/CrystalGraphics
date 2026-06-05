@@ -2,6 +2,7 @@ import package::compute::math;
 import package::compute::structural;
 import super::super::material::Material;
 import super::super::model_sample::ModelSample;
+import super::util::orientedNormal;
 
 /* Sample Function */
 fn sample(
@@ -13,6 +14,19 @@ fn sample(
         diffuseDir(surface_pos),
         diffuseDist(surface_pos, curr_dir, material)
     );
+}
+
+fn dist(
+    curr_dir: math::Vec,
+    next_dir: math::Vec,
+    material: Material,
+    surface_pos: structural::SurfacePos
+) -> vec3f {
+    let macro_norm = orientedNormal(curr_dir, surface_pos.shading_norm);
+    if dot(next_dir, macro_norm) <= 0.0f {
+        return vec3f(0.0f);
+    }
+    return lambertianDist(material, surface_pos);
 }
 
 fn diffuseDir(
@@ -40,5 +54,5 @@ fn diffuseDist(
     return lambertianDist(material, surface_pos);
 }
 fn lambertianDist(material: Material, surface_pos: structural::SurfacePos) -> vec3f {
-    return material.diffuse_reflectance.rgb;
+    return material.diffuse_reflectance.rgb / math::PI;
 }

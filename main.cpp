@@ -28,9 +28,9 @@ int main() {
   auto st = std::chrono::high_resolution_clock::now();
   while (std::chrono::high_resolution_clock::now() - st
          < std::chrono::seconds(30)) {
-    float angle = (float)std::chrono::duration_cast<std::chrono::milliseconds>(
-                      std::chrono::high_resolution_clock::now() - st)
-                      .count()
+    float angle = -(float)std::chrono::duration_cast<std::chrono::milliseconds>(
+                       std::chrono::high_resolution_clock::now() - st)
+                       .count()
                 / 1000 / 5;
     // angle = -std::numbers::pi / 2;
     float dis = 10.0f;

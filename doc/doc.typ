@@ -6,7 +6,7 @@
 
 #set document(
   title: "Crystal Graphics Document",
-  author: "Ray",
+  author: "Veyl",
   date: datetime.today(),
 )
 
@@ -190,7 +190,12 @@ However, the complexity scales substantially when scattering & absorption happen
   $ lr(chevron.l #body chevron.r) $
 }
 #let hemisphere = $upright(H)^2$
-#let prob = $scr(P)$
+#let sphere = $upright(S)^2$
+#let prob = $p$
+#let pos = $p$
+#let dir = $arrow(w)$
+#let curr = $"curr"$
+#let next = $"next"$
 
 / The Rendering Equation:
 
@@ -225,7 +230,7 @@ $
   L_o (wo) = sum_wi L_i (wi) f(wo, wi) cos angle(wi, norm)
 $
 
-== Models
+== Transport Models
 
 In the real world most materials exhibit combinations of reflection & scatter behaviors, but it is easier to discuss them seperately since the underlying physical process is different and we use different approximation models.
 
@@ -378,6 +383,35 @@ $
 
 We use the approximation $G(omega_1, omega_2) = 1 / (1 + Lambda(omega_1) + Lambda(omega_2))$
 rather than $G(omega_1, omega_2) = g(omega_1) g(omega_2)$ since the latter one underestimates and the prior one appears to be more accurate in practice.
+
+=== Light Sampling
+
+Since rays coming from light sources contribute greatly to a surface's received radiance despite the sparse solid angles they take up, it is of great benefit to deliberately sample rays that point to the light sources rather than relying on rays sampled from the transport model probability distributions.
+
+In this project we implemented power light sampling, which samples rays that point to light sources based on the light's strength:
+
+/ Power Light Sampling:
+
+$
+  prob(arrow(w)_i) = (P_i) / (sum P), \
+  "where" P "denotes the power of light" i "."
+$
+
+Light sampling techniques only have a PDF since the BSDF used should come from the transporte models.
+
+== Summary
+
+To sum up the above modeling, the complete rendering equation we simulate looks something like this:
+
+$
+  #let sampleModel = $scr(s)$
+  #let transportModel = $scr(t)$
+  L(dir_curr, pos)
+  & = L_e (p) + integral_sphere L(dir_next, pos) f(dir_curr, dir_next) cos angle(dir_next, norm) dif dir_next \
+  & = L_e (p) + sum^"MIS" integral_sphere L(dir_next, pos) f(dir_curr, dir_next) cos angle(dir_next, norm) dif dir_next \
+  & approx L_e (p) + sum_sampleModel 1 / n_sampleModel sum_(dir_next) alpha_sampleModel (dir_next) (sum_transportModel f_transportModel (dir_next)) / (prob_sampleModel (dir_curr, dir_next)), \
+  "where" & sampleModel in {"Sample Model"} and transportModel in {"Transport Model"}
+$
 
 = Implementation
 

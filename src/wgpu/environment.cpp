@@ -56,6 +56,8 @@ std::expected<Env, Error> CreateEnv(GLFWwindow* window) {
                                                    resources->idx_offset,
                                                    resources->vert_offset,
                                                    resources->mat_offset,
+                                                   resources->emissive_offset,
+                                                   resources->alias_offset,
                                                    *resources->material_texture_array,
                                                    *resources->material_texture_sampler,
                                                    *resources->environment_texture,

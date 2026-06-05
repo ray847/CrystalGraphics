@@ -1,64 +1,57 @@
 import package::compute::math;
 import package::compute::structural;
-import super::super::material::Material;
-import super::super::model_sample::ModelSample;
-import super::util::{fresnelReflectance, orientedNormal};
+import package::compute::shading::material::Material;
+import super::super::util::orientedNormal;
+import super::sample::TransportSample;
 
 const VNDF_EPSILON: f32 = 1e-6f;
 
-/* Sample Function */
 fn sample(
-    surface_pos: structural::SurfacePos,
     curr_dir: math::Vec,
+    surface_pos: structural::SurfacePos,
     material: Material
-) -> ModelSample {
+) -> TransportSample {
     let micro_norm = orientedNormal(
         curr_dir,
-        sampleNorm(surface_pos, curr_dir, material)
+        sampleNorm(curr_dir, surface_pos, material)
     );
     let next_dir = reflect(curr_dir, micro_norm);
     let macro_norm = orientedNormal(curr_dir, surface_pos.shading_norm);
     if dot(next_dir, macro_norm) <= 0.0f {
-        return ModelSample(next_dir, vec3f(0.0f));
+        return TransportSample(next_dir, 0.0f);
     }
-    let dist = reflectDist(curr_dir, micro_norm, macro_norm,
-        next_dir, material)
-        * reflectPdfWeight(curr_dir, micro_norm, macro_norm, next_dir, material);
-    return ModelSample(
+    return TransportSample(
         next_dir,
-        dist
+        reflectPdf(curr_dir, micro_norm, macro_norm, material)
     );
 }
 
 fn dist(
     curr_dir: math::Vec,
     next_dir: math::Vec,
-    material: Material,
-    surface_pos: structural::SurfacePos
-) -> vec3f {
+    surface_pos: structural::SurfacePos,
+    material: Material
+) -> f32 {
     let macro_norm = orientedNormal(curr_dir, surface_pos.shading_norm);
     if dot(next_dir, macro_norm) <= 0.0f {
-        return vec3f(0.0f);
+        return 0.0f;
     }
 
     let micro_norm_unnormalized = next_dir - curr_dir;
     if dot(micro_norm_unnormalized, micro_norm_unnormalized) <= VNDF_EPSILON {
-        return vec3f(0.0f);
+        return 0.0f;
     }
 
     let micro_norm = orientedNormal(
         curr_dir,
         normalize(micro_norm_unnormalized)
     );
-    return reflectDist(curr_dir, micro_norm, macro_norm, next_dir, material);
+    return reflectPdf(curr_dir, micro_norm, macro_norm, material);
 }
 
-/**
- * Sample a micro normal direction with the visible normal distribution function
- */
 fn sampleNorm(
-    surface_pos: structural::SurfacePos,
     curr_dir: math::Vec,
+    surface_pos: structural::SurfacePos,
     material: Material
 ) -> math::Vec {
     let macro_norm = orientedNormal(curr_dir, surface_pos.shading_norm);
@@ -70,7 +63,7 @@ fn sampleNorm(
     let stretched_curr_dir = normalize(vec3f(
         alpha * local_curr_dir.x,
         alpha * local_curr_dir.y,
-        max(local_curr_dir.z, VNDF_EPSILON),
+        max(local_curr_dir.z, VNDF_EPSILON)
     ));
 
     let tangent_length_sq = stretched_curr_dir.x * stretched_curr_dir.x
@@ -79,7 +72,7 @@ fn sampleNorm(
         vec3f(1.0f, 0.0f, 0.0f),
         vec3f(-stretched_curr_dir.y, stretched_curr_dir.x, 0.0f)
             / sqrt(max(tangent_length_sq, VNDF_EPSILON)),
-        tangent_length_sq > VNDF_EPSILON,
+        tangent_length_sq > VNDF_EPSILON
     );
     let tangent_y = cross(stretched_curr_dir, tangent_x);
 
@@ -91,72 +84,43 @@ fn sampleNorm(
     projected_y = mix(
         sqrt(max(0.0f, 1.0f - projected_x * projected_x)),
         projected_y,
-        visibility_lerp,
+        visibility_lerp
     );
 
     let local_stretched_micro_norm = projected_x * tangent_x
         + projected_y * tangent_y
         + sqrt(max(
-        0.0f,
-        1.0f - projected_x * projected_x - projected_y * projected_y,
-    )) * stretched_curr_dir;
+            0.0f,
+            1.0f - projected_x * projected_x - projected_y * projected_y
+        )) * stretched_curr_dir;
     let local_micro_norm = normalize(vec3f(
         alpha * local_stretched_micro_norm.x,
         alpha * local_stretched_micro_norm.y,
-        max(local_stretched_micro_norm.z, VNDF_EPSILON),
+        max(local_stretched_micro_norm.z, VNDF_EPSILON)
     ));
 
     return normalize(tangent_space * local_micro_norm);
 }
 
-fn reflectDist(
+fn reflectPdf(
     curr_dir: math::Vec,
     micro_norm: math::Vec,
     macro_norm: math::Vec,
-    next_dir: math::Vec,
-    material: Material
-) -> vec3f {
-    let curr_macro_projection = max(dot(-curr_dir, macro_norm), VNDF_EPSILON);
-    let next_macro_projection = max(dot(next_dir, macro_norm), VNDF_EPSILON);
-
-    return ggxNormDist(micro_norm, macro_norm, material)
-        * ggxMaskBiDir(acos(curr_macro_projection), acos(next_macro_projection),
-        material)
-        * fresnelReflectance(curr_dir, micro_norm, material.ior)
-        / (4.0f * curr_macro_projection * next_macro_projection);
-}
-
-fn reflectPdfWeight(
-    curr_dir: math::Vec,
-    micro_norm: math::Vec,
-    macro_norm: math::Vec,
-    next_dir: math::Vec,
     material: Material
 ) -> f32 {
     let curr_macro_projection = max(dot(-curr_dir, macro_norm), VNDF_EPSILON);
-    let next_macro_projection = max(dot(next_dir, macro_norm), 0.0f);
     let curr_micro_projection = max(dot(-curr_dir, micro_norm), VNDF_EPSILON);
     let visible_normal_pdf = ggxNormDist(micro_norm, macro_norm, material)
         * ggxMaskUniDir(acos(curr_macro_projection), material)
         * curr_micro_projection
         / curr_macro_projection;
-    let next_dir_pdf = visible_normal_pdf / (4.0f * curr_micro_projection);
-
-    return next_macro_projection / max(next_dir_pdf, VNDF_EPSILON);
+    return visible_normal_pdf / (4.0f * curr_micro_projection);
 }
 
 fn ggxMaskUniDir(angle: f32, material: Material) -> f32 {
     let alpha = material.microfacet_roughness;
-    return 1 /
-    (1 + (sqrt(1 + alpha * tan(angle) * tan(angle)) - 1) / 2);
-}
-
-fn ggxMaskBiDir(angle1: f32, angle2: f32, material: Material) -> f32 {
-    let alpha = material.microfacet_roughness;
-    return 1 /
-    (1 +
-        (sqrt(1 + alpha * tan(angle1) * tan(angle1)) - 1) / 2 +
-        (sqrt(1 + alpha * tan(angle2) * tan(angle2)) - 1) / 2);
+    return 1.0f /
+        (1.0f + (sqrt(1.0f + alpha * tan(angle) * tan(angle)) - 1.0f) / 2.0f);
 }
 
 fn ggxNormDist(

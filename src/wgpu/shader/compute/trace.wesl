@@ -49,6 +49,7 @@ fn trace(ray: math::Ray) -> physics::Radiance {
                 continue;
             } else {
                 let curr_dir = stk[top].ray.dir;
+                /* Shading forward pass. */
                 stk[top].shading_pass_context = shading::forwardPass(
                     curr_dir,
                     stk[top].hit_info.surface_pos,
@@ -56,19 +57,39 @@ fn trace(ray: math::Ray) -> physics::Radiance {
                 );
                 stk[top].iter = 0;
                 stk[top].in_recurse = true;
+                /* Emission ray tracing. */
+                for (var i: u32; i < stk[top].shading_pass_context.samples.emission_count; i++) {
+                    let emission_sample = \
+                        stk[top].shading_pass_context.samples.emission_samples[i];
+                    let hit_info = structural::rayHit(
+                        shading::spawnSurfaceRay(
+                            stk[top].hit_info.surface_pos,
+                            emission_sample.dir
+                        )
+                    );
+                    if hit_info.travel_info.hit &&
+                    hit_info.travel_info.dist <
+                        emission_sample.expected_dist
+                        - shading::EMISSION_HIT_EPSILON {
+                        stk[top].shading_pass_context.samples.emission_samples[i].radiance = \
+                        physics::Radiance();
+                    }
+                }
             }
         }
         /* Collect Return Value */
         else {
-            stk[top].shading_pass_context.sampled_rays.ray_radiance[\
-                stk[top].iter - 1] = ret;
+            stk[top].shading_pass_context.transport_radiance[stk[top].iter - 1] = ret;
         }
 
         /* Sample Loop */
-        if stk[top].iter < stk[top].shading_pass_context.sampled_rays.count {
+        if stk[top].iter
+            < stk[top].shading_pass_context.samples.transport_count {
             /* Recursion Call */
-            stk[top + 1].ray = \
-                stk[top].shading_pass_context.sampled_rays.rays[stk[top].iter];
+            stk[top + 1].ray = shading::spawnSurfaceRay(
+                stk[top].hit_info.surface_pos,
+                stk[top].shading_pass_context.samples.transport_samples[stk[top].iter].dir
+            );
             stk[top + 1].lod = lod::decr(stk[top].lod);
             stk[top].iter += 1;
             top++;

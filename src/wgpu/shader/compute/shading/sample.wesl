@@ -1,102 +1,139 @@
-import package::compute::math;
-import package::compute::physics;
-import package::compute::structural;
-import package::compute::lod;
-import super::material::{Material, IORChannel, material};
-import super::model::{
-    diffuse::{sample as diffuseSample},
-    specular_reflection::{sample as specularReflectSample},
-    rough_reflection::{sample as roughReflectSample},
-    specular_transmission::{sample as specularTransmitSample},
-    rough_transmission::{sample as roughTransmitSample},
+import package::compute::{
+  lod,
+  math,
+  physics,
+  structural,
+};
+import super::{
+  material::{Material, IORChannel},
+  pdf::{
+    diffuse::{
+      dist as diffusePdf,
+      sample as diffuseSample,
+    },
+    specular_reflection::{
+      dist as specularReflectPdf,
+      sample as specularReflectSample,
+    },
+    rough_reflection::{
+      dist as roughReflectPdf,
+      sample as roughReflectSample,
+    },
+    specular_transmission::{
+      dist as specularTransmitPdf,
+      sample as specularTransmitSample,
+    },
+    rough_transmission::{
+      dist as roughTransmitPdf,
+      sample as roughTransmitSample,
+    },
+    emission::{
+      canSample as canSampleEmission,
+      dist as lightPdf,
+      sample as emissionSample,
+    },
+  },
+  dist::{
+    diffuse::dist as diffuseDist,
+    specular_reflection::dist as specularReflectDist,
+    rough_reflection::dist as roughReflectDist,
+    specular_transmission::dist as specularTransmitDist,
+    rough_transmission::dist as roughTransmitDist,
+  },
+  util::{fresnelReflectance, orientedNormal, relIor},
 };
 
-const MAX_SAMPLE_COUNT: u32 = 4u;
+const MAX_TRANSPORT_SAMPLE_COUNT: u32 = 4u;
+const MAX_EMISSION_SAMPLE_COUNT: u32 = 4u;
 const MAX_DIFFUSE_COUNT: u32 = 4u;
 const MAX_ROUGH_COUNT: u32 = 4u;
-const MIN_MODEL_WEIGHT: f32 = 1e-6;
+const MIN_SAMPLE_WEIGHT: f32 = 1e-6f;
+const EMISSION_HIT_EPSILON: f32 = 1e-3f;
 
-const RAY_OFFSET: f32 = 1e-3;
+struct TransportSample {
+    dir: math::Vec,
+    coeff: vec3f,
+};
 
-struct SampledRays {
-    count: u32,
-    rays: array<math::Ray, MAX_SAMPLE_COUNT>,
-    ray_coeff: array<vec3f, MAX_SAMPLE_COUNT>, // coefficient for 3 channels
-    ray_radiance: array<physics::Radiance, MAX_SAMPLE_COUNT>,
-}
+struct EmissionSample {
+    dir: math::Vec,
+    radiance: physics::Radiance,
+    expected_dist: f32,
+};
 
-struct ModelHeuristics {
+struct Sample {
+    transport_count: u32,
+    emission_count: u32,
+    transport_samples: array<TransportSample, MAX_TRANSPORT_SAMPLE_COUNT>,
+    emission_samples: array<EmissionSample, MAX_EMISSION_SAMPLE_COUNT>,
+};
+
+struct SampleHeuristics {
     diffuse: f32,
-    specular_reflection: f32,
-    rough_reflection: f32,
-    specular_transmission: f32,
-    rough_transmission: f32,
-}
+    specular_reflect: f32,
+    rough_reflect: f32,
+    specular_transmit: f32,
+    rough_transmit: f32,
+    light: f32,
+};
 
-struct ModelSampleCounts {
+struct SampleCounts {
     diffuse: u32,
     specular_reflect: u32,
     rough_reflect: u32,
     specular_transmit: u32,
     rough_transmit: u32,
-}
+    light: u32,
+};
 
-fn sampleRays(
+fn sample(
     curr_dir: math::Vec,
     surface_pos: structural::SurfacePos,
     material: Material,
-    lod: lod::LOD
-) -> SampledRays {
-    let heuristics = modelHeuristics(material);
-    let counts = modelSampleCounts(
-        u32(lod::heuristic(lod) * f32(MAX_SAMPLE_COUNT)),
-        heuristics
-    );
-    let sample = sampleModels(curr_dir, surface_pos, material, counts);
-    return sample;
+    curr_lod: lod::LOD
+) -> Sample {
+    let sample_heuristics = heuristics(material);
+    let sample_counts = counts(sample_heuristics, curr_lod);
+    return sampleModels(curr_dir, surface_pos, material, sample_counts);
 }
 
-fn modelHeuristics(material: Material) -> ModelHeuristics {
-    let diffuse_weight = max(
+fn heuristics(material: Material) -> SampleHeuristics {
+    let diffuse_heuristic = max(
         material.diffuse_reflectance.r,
         max(material.diffuse_reflectance.g, material.diffuse_reflectance.b)
     );
-    let reflection_weight = normalReflectance(material);
-    let transmission_weight = material.transmission;
-    let diffuse_heuristic = select(
+    let reflection_heuristic = normalReflectance(material);
+    let transmission_heuristic = material.transmission;
+    let specular_reflect_heuristic = select(
         0.0f,
-        diffuse_weight,
-        diffuse_weight > MIN_MODEL_WEIGHT,
+        reflection_heuristic,
+        material.microfacet_roughness == 0.0f
     );
-    let specular_reflection_heuristic: f32 = select(
+    let rough_reflect_heuristic = select(
         0.0f,
-        reflection_weight,
-        material.microfacet_roughness == 0.0f,
+        reflection_heuristic,
+        material.microfacet_roughness > 0.0f
     );
-    let rough_reflection_heuristic: f32 = select(
+    let specular_transmit_heuristic = select(
         0.0f,
-        reflection_weight,
-        material.microfacet_roughness > 0.0f,
+        transmission_heuristic,
+        transmission_heuristic > MIN_SAMPLE_WEIGHT
+            && material.microfacet_roughness == 0.0f
     );
-    let specular_transmission_heuristic: f32 = select(
+    let rough_transmit_heuristic = select(
         0.0f,
-        transmission_weight,
-        transmission_weight > MIN_MODEL_WEIGHT
-            && material.microfacet_roughness == 0.0f,
-    );
-    let rough_transmission_heuristic: f32 = select(
-        0.0f,
-        transmission_weight,
-        transmission_weight > MIN_MODEL_WEIGHT
-            && material.microfacet_roughness > 0.0f,
+        transmission_heuristic,
+        transmission_heuristic > MIN_SAMPLE_WEIGHT
+            && material.microfacet_roughness > 0.0f
     );
 
-    return ModelHeuristics(
+    return SampleHeuristics(
         diffuse_heuristic,
-        specular_reflection_heuristic,
-        rough_reflection_heuristic,
-        specular_transmission_heuristic,
-        rough_transmission_heuristic
+        specular_reflect_heuristic,
+        rough_reflect_heuristic,
+        specular_transmit_heuristic,
+        rough_transmit_heuristic,
+        select(0.0f, 1.0f, canSampleEmission())
     );
 }
 
@@ -117,239 +154,401 @@ fn normalReflectanceChannel(channel: IORChannel) -> f32 {
     return clamp(
         (real_offset_low * real_offset_low + imaginary_squared)
             / max(
-            real_offset_high * real_offset_high + imaginary_squared,
-            MIN_MODEL_WEIGHT,
-        ),
+                real_offset_high * real_offset_high + imaginary_squared,
+                MIN_SAMPLE_WEIGHT
+            ),
         0.0f,
-        1.0f,
+        1.0f
     );
 }
 
-fn modelSampleCounts(
+fn counts(sample_heuristics: SampleHeuristics, curr_lod: lod::LOD) -> SampleCounts {
+    let transport_available = u32(
+        lod::heuristic(curr_lod) * f32(MAX_TRANSPORT_SAMPLE_COUNT)
+    );
+    let emission_available = u32(
+        lod::heuristic(curr_lod) * f32(MAX_EMISSION_SAMPLE_COUNT)
+    );
+
+    var sample_counts = transportCounts(transport_available, sample_heuristics);
+    sample_counts.light = select(
+        0u,
+        max(1u, emission_available),
+        sample_heuristics.light > MIN_SAMPLE_WEIGHT
+            && emission_available > 0u
+    );
+    return sample_counts;
+}
+
+fn transportCounts(
     available_count: u32,
-    heuristics: ModelHeuristics
-) -> ModelSampleCounts {
-    let heuristic_sum: f32 = heuristics.diffuse
-        + heuristics.specular_reflection
-        + heuristics.rough_reflection
-        + heuristics.specular_transmission
-        + heuristics.rough_transmission;
-    if heuristic_sum <= 0.0f {
-        return ModelSampleCounts();
+    sample_heuristics: SampleHeuristics
+) -> SampleCounts {
+    let heuristic_sum = sample_heuristics.diffuse
+        + sample_heuristics.specular_reflect
+        + sample_heuristics.rough_reflect
+        + sample_heuristics.specular_transmit
+        + sample_heuristics.rough_transmit;
+    if available_count == 0u || heuristic_sum <= MIN_SAMPLE_WEIGHT {
+        return SampleCounts();
     }
 
-    let diffuse_desired = desiredSampleCount(
-        heuristics.diffuse,
-        MAX_DIFFUSE_COUNT
-    );
-    let specular_reflect_desired = desiredSampleCount(
-        heuristics.specular_reflection,
-        1u
-    );
-    let rough_reflect_desired = desiredSampleCount(
-        heuristics.rough_reflection,
-        MAX_ROUGH_COUNT
-    );
-    let specular_transmit_desired = desiredSampleCount(
-        heuristics.specular_transmission,
-        1u
-    );
-    let rough_transmit_desired = desiredSampleCount(
-        heuristics.rough_transmission,
-        MAX_ROUGH_COUNT
+    let sample_scale = f32(available_count) / heuristic_sum;
+    var sample_counts = SampleCounts(
+        scaledCount(sample_heuristics.diffuse, sample_scale, MAX_DIFFUSE_COUNT),
+        scaledCount(sample_heuristics.specular_reflect, sample_scale, 1u),
+        scaledCount(sample_heuristics.rough_reflect, sample_scale,
+            MAX_ROUGH_COUNT),
+        scaledCount(sample_heuristics.specular_transmit, sample_scale, 1u),
+        scaledCount(sample_heuristics.rough_transmit, sample_scale,
+            MAX_ROUGH_COUNT),
+        0u
     );
 
-    let desired_count = diffuse_desired
-        + specular_reflect_desired
-        + rough_reflect_desired
-        + specular_transmit_desired
-        + rough_transmit_desired;
-    if desired_count <= available_count {
-        return ModelSampleCounts(
-            diffuse_desired,
-            specular_reflect_desired,
-            rough_reflect_desired,
-            specular_transmit_desired,
-            rough_transmit_desired
-        );
-    }
-
-    let available_float = f32(available_count);
-    let diffuse_share = available_float * heuristics.diffuse / heuristic_sum;
-    let specular_reflect_share = available_float * heuristics.specular_reflection / heuristic_sum;
-    let rough_reflect_share = available_float * heuristics.rough_reflection / heuristic_sum;
-    let specular_transmit_share = available_float * heuristics.specular_transmission / heuristic_sum;
-    let rough_transmit_share = available_float * heuristics.rough_transmission / heuristic_sum;
-
-    var counts = ModelSampleCounts(
-        min(diffuse_desired, u32(diffuse_share)),
-        min(specular_reflect_desired, u32(specular_reflect_share)),
-        min(rough_reflect_desired, u32(rough_reflect_share)),
-        min(specular_transmit_desired, u32(specular_transmit_share)),
-        min(rough_transmit_desired, u32(rough_transmit_share))
-    );
-    var remaining_count = available_count
-        - counts.diffuse
-        - counts.specular_reflect
-        - counts.rough_reflect
-        - counts.specular_transmit
-        - counts.rough_transmit;
-
-    var diffuse_cap = diffuse_desired - counts.diffuse;
-    var specular_reflect_cap = specular_reflect_desired - counts.specular_reflect;
-    var rough_reflect_cap = rough_reflect_desired - counts.rough_reflect;
-    var specular_transmit_cap = specular_transmit_desired - counts.specular_transmit;
-    var rough_transmit_cap = rough_transmit_desired - counts.rough_transmit;
-
-    var diffuse_remainder = select(
-        -1.0f,
-        diffuse_share - f32(counts.diffuse),
-        diffuse_cap > 0u,
-    );
-    var specular_reflect_remainder = select(
-        -1.0f,
-        specular_reflect_share - f32(counts.specular_reflect),
-        specular_reflect_cap > 0u,
-    );
-    var rough_reflect_remainder = select(
-        -1.0f,
-        rough_reflect_share - f32(counts.rough_reflect),
-        rough_reflect_cap > 0u,
-    );
-    var specular_transmit_remainder = select(
-        -1.0f,
-        specular_transmit_share - f32(counts.specular_transmit),
-        specular_transmit_cap > 0u,
-    );
-    var rough_transmit_remainder = select(
-        -1.0f,
-        rough_transmit_share - f32(counts.rough_transmit),
-        rough_transmit_cap > 0u,
-    );
-
-    while remaining_count > 0u {
-        if specular_transmit_remainder >= diffuse_remainder
-            && specular_transmit_remainder >= specular_reflect_remainder
-            && specular_transmit_remainder >= rough_reflect_remainder
-            && specular_transmit_remainder >= rough_transmit_remainder
-            && specular_transmit_cap > 0u {
-            counts.specular_transmit += 1u;
-            specular_transmit_cap -= 1u;
-            specular_transmit_remainder = -1.0f;
-        } else if diffuse_remainder >= specular_reflect_remainder
-            && diffuse_remainder >= rough_reflect_remainder
-            && diffuse_remainder >= rough_transmit_remainder
-            && diffuse_cap > 0u {
-            counts.diffuse += 1u;
-            diffuse_cap -= 1u;
-            diffuse_remainder = -1.0f;
-        } else if specular_reflect_remainder >= rough_reflect_remainder
-            && specular_reflect_remainder >= rough_transmit_remainder
-            && specular_reflect_cap > 0u {
-            counts.specular_reflect += 1u;
-            specular_reflect_cap -= 1u;
-            specular_reflect_remainder = -1.0f;
-        } else if rough_reflect_remainder >= rough_transmit_remainder
-            && rough_reflect_cap > 0u {
-            counts.rough_reflect += 1u;
-            rough_reflect_cap -= 1u;
-            rough_reflect_remainder = -1.0f;
-        } else if rough_transmit_cap > 0u {
-            counts.rough_transmit += 1u;
-            rough_transmit_cap -= 1u;
-            rough_transmit_remainder = -1.0f;
-        } else {
-            break;
-        }
-        remaining_count -= 1u;
-    }
-
-    return counts;
+    return capTransportCounts(sample_counts, available_count);
 }
 
-fn desiredSampleCount(heuristic: f32, max_count: u32) -> u32 {
-    if heuristic <= 0.0f {
+fn scaledCount(heuristic: f32, scale: f32, max_count: u32) -> u32 {
+    if heuristic <= MIN_SAMPLE_WEIGHT {
         return 0u;
     }
-    return min(max(1u, u32(ceil(heuristic))), max_count);
+    return min(max(1u, u32(heuristic * scale)), max_count);
+}
+
+fn capTransportCounts(
+    sample_counts: SampleCounts,
+    available_count: u32
+) -> SampleCounts {
+    var remaining_count = available_count;
+    var capped_counts = SampleCounts();
+
+    capped_counts.diffuse = min(sample_counts.diffuse, remaining_count);
+    remaining_count -= capped_counts.diffuse;
+    capped_counts.specular_reflect = min(
+        sample_counts.specular_reflect,
+        remaining_count
+    );
+    remaining_count -= capped_counts.specular_reflect;
+    capped_counts.rough_reflect = min(sample_counts.rough_reflect,
+        remaining_count);
+    remaining_count -= capped_counts.rough_reflect;
+    capped_counts.specular_transmit = min(
+        sample_counts.specular_transmit,
+        remaining_count
+    );
+    remaining_count -= capped_counts.specular_transmit;
+    capped_counts.rough_transmit = min(sample_counts.rough_transmit,
+        remaining_count);
+    return capped_counts;
 }
 
 fn sampleModels(
     curr_dir: math::Vec,
     surface_pos: structural::SurfacePos,
     material: Material,
-    counts: ModelSampleCounts
-) -> SampledRays {
-    var sampled_rays = SampledRays();
+    sample_counts: SampleCounts
+) -> Sample {
+    var res = Sample();
 
-    for (var i: u32 = 0; i < counts.diffuse; i++) {
-        let sample = diffuseSample(surface_pos, curr_dir, material);
-        sampled_rays.rays[sampled_rays.count] = spawnSurfaceRay(
-            surface_pos,
-            sample.next_dir
+    for (var i: u32 = 0u; i < sample_counts.diffuse; i++) {
+        let model_sample = diffuseSample(curr_dir, surface_pos, material);
+        addTransportSample(
+            &res,
+            model_sample.next_dir,
+            diffuseCoeff(curr_dir, model_sample.next_dir, surface_pos, material,
+                sample_counts)
         );
-        sampled_rays.ray_coeff[sampled_rays.count] = \
-            sample.dist / f32(counts.diffuse);
-        sampled_rays.count += 1;
     }
 
-    for (var i: u32 = 0; i < counts.specular_reflect; i++) {
-        let sample = specularReflectSample(
-            surface_pos,
+    for (var i: u32 = 0u; i < sample_counts.specular_reflect; i++) {
+        let model_sample = specularReflectSample(curr_dir, surface_pos,
+            material);
+        addTransportSample(
+            &res,
+            model_sample.next_dir,
+            specularReflectCoeff(curr_dir, model_sample.next_dir, surface_pos,
+                material, sample_counts)
+        );
+    }
+
+    for (var i: u32 = 0u; i < sample_counts.rough_reflect; i++) {
+        let model_sample = roughReflectSample(curr_dir, surface_pos, material);
+        addTransportSample(
+            &res,
+            model_sample.next_dir,
+            roughReflectCoeff(curr_dir, model_sample.next_dir, surface_pos,
+                material, sample_counts)
+        );
+    }
+
+    for (var i: u32 = 0u; i < sample_counts.specular_transmit; i++) {
+        let model_sample = specularTransmitSample(curr_dir, surface_pos,
+            material);
+        addTransportSample(
+            &res,
+            model_sample.next_dir,
+            specularTransmitCoeff(curr_dir, model_sample.next_dir, surface_pos,
+                material, sample_counts)
+        );
+    }
+
+    for (var i: u32 = 0u; i < sample_counts.rough_transmit; i++) {
+        let model_sample = roughTransmitSample(curr_dir, surface_pos, material);
+        addTransportSample(
+            &res,
+            model_sample.next_dir,
+            roughTransmitCoeff(curr_dir, model_sample.next_dir, surface_pos,
+                material, sample_counts)
+        );
+    }
+
+    for (var i: u32 = 0u; i < sample_counts.light; i++) {
+        let model_sample = emissionSample(curr_dir, surface_pos, material);
+        addEmissionSample(
+            &res,
             curr_dir,
-            material
-        );
-        sampled_rays.rays[sampled_rays.count] = spawnSurfaceRay(
             surface_pos,
-            sample.next_dir
+            material,
+            model_sample,
+            sample_counts
         );
-        sampled_rays.ray_coeff[sampled_rays.count] = sample.dist;
-        sampled_rays.count += 1;
     }
 
-    for (var i: u32 = 0; i < counts.rough_reflect; i++) {
-        let sample = roughReflectSample(surface_pos, curr_dir, material);
-        sampled_rays.rays[sampled_rays.count] = spawnSurfaceRay(
-            surface_pos,
-            sample.next_dir
-        );
-        sampled_rays.ray_coeff[sampled_rays.count] = \
-            sample.dist / f32(counts.rough_reflect);
-        sampled_rays.count += 1;
-    }
-
-    for (var i: u32 = 0u; i < counts.specular_transmit; i++) {
-        let sample = specularTransmitSample(surface_pos, curr_dir, material);
-        sampled_rays.rays[sampled_rays.count] = spawnSurfaceRay(
-            surface_pos,
-            sample.next_dir
-        );
-        sampled_rays.ray_coeff[sampled_rays.count] = sample.dist;
-        sampled_rays.count += 1;
-    }
-
-    for (var i: u32 = 0u; i < counts.rough_transmit; i++) {
-        let sample = roughTransmitSample(surface_pos, curr_dir, material);
-        sampled_rays.rays[sampled_rays.count] = spawnSurfaceRay(
-            surface_pos,
-            sample.next_dir
-        );
-        sampled_rays.ray_coeff[sampled_rays.count] = \
-            sample.dist / f32(counts.rough_transmit);
-        sampled_rays.count += 1;
-    }
-
-    return sampled_rays;
+    return res;
 }
 
-fn spawnSurfaceRay(
+fn addTransportSample(
+    samples: ptr<function, Sample>,
+    next_dir: math::Vec,
+    coeff: vec3f
+) {
+    let idx = (*samples).transport_count;
+    (*samples).transport_samples[idx] = TransportSample(next_dir, coeff);
+    (*samples).transport_count += 1u;
+}
+
+fn addEmissionSample(
+    samples: ptr<function, Sample>,
+    curr_dir: math::Vec,
     surface_pos: structural::SurfacePos,
-    next_dir: math::Vec
-) -> math::Ray {
-    let offset_normal = select(
-        -surface_pos.geometry_norm,
-        surface_pos.geometry_norm,
-        dot(next_dir, surface_pos.geometry_norm) > 0.0f,
+    material: Material,
+    model_sample: super::pdf::sample::EmissionSample,
+    sample_counts: SampleCounts
+) {
+    if model_sample.prob <= MIN_SAMPLE_WEIGHT {
+        return;
+    }
+
+    let idx = (*samples).emission_count;
+    let next_dir = model_sample.next_dir;
+    let surface_projection = abs(dot(surface_pos.shading_norm, next_dir));
+    (*samples).emission_samples[idx] = EmissionSample(
+        next_dir,
+        model_sample.radiance
+        * emissionCoeff(curr_dir, next_dir, surface_pos, material)
+        * surface_projection
+        / balancePdfDenominator(
+            curr_dir,
+            next_dir,
+            surface_pos,
+            material,
+            sample_counts,
+            model_sample.prob
+        ),
+        model_sample.expected_dist
     );
-    return math::Ray(surface_pos.pos + offset_normal * RAY_OFFSET, next_dir);
+    (*samples).emission_count += 1u;
+}
+
+fn diffuseCoeff(
+    curr_dir: math::Vec,
+    next_dir: math::Vec,
+    surface_pos: structural::SurfacePos,
+    material: Material,
+    sample_counts: SampleCounts
+) -> vec3f {
+    let macro_norm = orientedNormal(curr_dir, surface_pos.shading_norm);
+    let next_projection = max(dot(next_dir, macro_norm), 0.0f);
+    return material.diffuse_reflectance.rgb
+        * diffuseDist(curr_dir, next_dir, surface_pos, material)
+        * next_projection
+        / balancePdfDenominator(
+            curr_dir,
+            next_dir,
+            surface_pos,
+            material,
+            sample_counts,
+            -1.0f
+        );
+}
+
+fn specularReflectCoeff(
+    curr_dir: math::Vec,
+    next_dir: math::Vec,
+    surface_pos: structural::SurfacePos,
+    material: Material,
+    sample_counts: SampleCounts
+) -> vec3f {
+    let macro_norm = orientedNormal(curr_dir, surface_pos.shading_norm);
+    return fresnelReflectance(curr_dir, macro_norm, material.ior)
+        * specularReflectDist(curr_dir, next_dir, surface_pos, material)
+        / balancePdfDenominator(
+            curr_dir,
+            next_dir,
+            surface_pos,
+            material,
+            sample_counts,
+            -1.0f
+        );
+}
+
+fn roughReflectCoeff(
+    curr_dir: math::Vec,
+    next_dir: math::Vec,
+    surface_pos: structural::SurfacePos,
+    material: Material,
+    sample_counts: SampleCounts
+) -> vec3f {
+    let macro_norm = orientedNormal(curr_dir, surface_pos.shading_norm);
+    let next_projection = max(dot(next_dir, macro_norm), 0.0f);
+    let micro_norm = reflectionMicroNorm(curr_dir, next_dir);
+    return fresnelReflectance(curr_dir, micro_norm, material.ior)
+        * roughReflectDist(curr_dir, next_dir, surface_pos, material)
+        * next_projection
+        / balancePdfDenominator(
+            curr_dir,
+            next_dir,
+            surface_pos,
+            material,
+            sample_counts,
+            -1.0f
+        );
+}
+
+fn specularTransmitCoeff(
+    curr_dir: math::Vec,
+    next_dir: math::Vec,
+    surface_pos: structural::SurfacePos,
+    material: Material,
+    sample_counts: SampleCounts
+) -> vec3f {
+    let macro_norm = orientedNormal(curr_dir, surface_pos.shading_norm);
+    return material.transmission
+        * (1.0f - fresnelReflectance(curr_dir, macro_norm, material.ior))
+        * specularTransmitDist(curr_dir, next_dir, surface_pos, material)
+        / balancePdfDenominator(
+            curr_dir,
+            next_dir,
+            surface_pos,
+            material,
+            sample_counts,
+            -1.0f
+        );
+}
+
+fn roughTransmitCoeff(
+    curr_dir: math::Vec,
+    next_dir: math::Vec,
+    surface_pos: structural::SurfacePos,
+    material: Material,
+    sample_counts: SampleCounts
+) -> vec3f {
+    let macro_norm = orientedNormal(curr_dir, surface_pos.shading_norm);
+    let next_projection = max(dot(-next_dir, macro_norm), 0.0f);
+    let micro_norm = transmissionMicroNorm(curr_dir, next_dir, macro_norm,
+        material);
+    return (1.0f - fresnelReflectance(curr_dir, micro_norm, material.ior))
+        * roughTransmitDist(curr_dir, next_dir, surface_pos, material)
+        * next_projection
+        / balancePdfDenominator(
+            curr_dir,
+            next_dir,
+            surface_pos,
+            material,
+            sample_counts,
+            -1.0f
+        );
+}
+
+fn emissionCoeff(
+    curr_dir: math::Vec,
+    next_dir: math::Vec,
+    surface_pos: structural::SurfacePos,
+    material: Material
+) -> vec3f {
+    let macro_norm = orientedNormal(curr_dir, surface_pos.shading_norm);
+    let reflection_micro_norm = reflectionMicroNorm(curr_dir, next_dir);
+    let transmission_micro_norm = transmissionMicroNorm(
+        curr_dir,
+        next_dir,
+        macro_norm,
+        material
+    );
+    return material.diffuse_reflectance.rgb
+        * diffuseDist(curr_dir, next_dir, surface_pos, material)
+        + fresnelReflectance(curr_dir, reflection_micro_norm, material.ior)
+        * roughReflectDist(curr_dir, next_dir, surface_pos, material)
+        + (1.0f - fresnelReflectance(
+            curr_dir,
+            transmission_micro_norm,
+            material.ior
+        ))
+        * roughTransmitDist(curr_dir, next_dir, surface_pos, material);
+}
+
+fn balancePdfDenominator(
+    curr_dir: math::Vec,
+    next_dir: math::Vec,
+    surface_pos: structural::SurfacePos,
+    material: Material,
+    sample_counts: SampleCounts,
+    sampled_light_pdf: f32
+) -> f32 {
+    let light_pdf = select(
+        lightPdf(curr_dir, next_dir, surface_pos, material),
+        sampled_light_pdf,
+        sampled_light_pdf >= 0.0f
+    );
+    return max(
+        f32(sample_counts.diffuse)
+            * diffusePdf(curr_dir, next_dir, surface_pos, material)
+        + f32(sample_counts.specular_reflect)
+            * specularReflectPdf(curr_dir, next_dir, surface_pos, material)
+        + f32(sample_counts.rough_reflect)
+            * roughReflectPdf(curr_dir, next_dir, surface_pos, material)
+        + f32(sample_counts.specular_transmit)
+            * specularTransmitPdf(curr_dir, next_dir, surface_pos, material)
+        + f32(sample_counts.rough_transmit)
+            * roughTransmitPdf(curr_dir, next_dir, surface_pos, material)
+        + f32(sample_counts.light) * light_pdf,
+        MIN_SAMPLE_WEIGHT
+    );
+}
+
+fn reflectionMicroNorm(curr_dir: math::Vec, next_dir: math::Vec) -> math::Vec {
+    let micro_norm_unnormalized = next_dir - curr_dir;
+    if dot(micro_norm_unnormalized, micro_norm_unnormalized)
+        <= MIN_SAMPLE_WEIGHT {
+        return math::Vec();
+    }
+    return normalize(micro_norm_unnormalized);
+}
+
+fn transmissionMicroNorm(
+    curr_dir: math::Vec,
+    next_dir: math::Vec,
+    macro_norm: math::Vec,
+    material: Material
+) -> math::Vec {
+    let relative_ior = relIor(macro_norm, curr_dir, material);
+    let relative_ior_value = max(
+        (relative_ior.r.re + relative_ior.g.re + relative_ior.b.re) / 3.0f,
+        MIN_SAMPLE_WEIGHT
+    );
+    let micro_norm_unnormalized = relative_ior_value * curr_dir - next_dir;
+    if dot(micro_norm_unnormalized, micro_norm_unnormalized)
+        <= MIN_SAMPLE_WEIGHT {
+        return math::Vec();
+    }
+    return orientedNormal(curr_dir, normalize(micro_norm_unnormalized));
 }

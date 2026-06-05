@@ -33,6 +33,41 @@ fn sample(
     return ModelSample(next_dir, dist);
 }
 
+fn dist(
+    curr_dir: math::Vec,
+    next_dir: math::Vec,
+    material: Material,
+    surface_pos: structural::SurfacePos
+) -> vec3f {
+    let macro_norm = orientedNormal(curr_dir, surface_pos.shading_norm);
+    if dot(next_dir, macro_norm) >= 0.0f {
+        return vec3f(0.0f);
+    }
+
+    let macro_relative_ior = relIor(macro_norm, curr_dir, material);
+    let macro_relative_ior_value = relativeIor(macro_relative_ior);
+    let micro_norm_unnormalized = macro_relative_ior_value * curr_dir
+        - next_dir;
+    if dot(micro_norm_unnormalized, micro_norm_unnormalized) <= VNDF_EPSILON {
+        return vec3f(0.0f);
+    }
+
+    let micro_norm = orientedNormal(
+        curr_dir,
+        normalize(micro_norm_unnormalized)
+    );
+    let relative_ior = relIor(micro_norm, curr_dir, material);
+    let transmission_ior = transmissionIor(relative_ior);
+    return transmitDist(
+        curr_dir,
+        micro_norm,
+        macro_norm,
+        next_dir,
+        transmission_ior,
+        material
+    );
+}
+
 fn relativeIor(ior: IOR) -> f32 {
     return max((ior.r.re + ior.g.re + ior.b.re) / 3.0f, VNDF_EPSILON);
 }

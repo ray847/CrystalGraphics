@@ -7,11 +7,14 @@
 #include <glm/common.hpp>
 #include <glm/ext/vector_float3.hpp>
 #include <optional>
+#include <ranges>
 #include <utility>
 #include <vector>
 
 #include "CrystalGraphics/scene.h"
+#include "alias_table.h"
 #include "bvh.h"
+#include "emissive_buffer.h"
 #include "src/image_decode.h"
 #include "src/scene_impl.h"
 
@@ -26,6 +29,8 @@ class SceneData {
   const TextureContainer& textures_;
   const std::optional<std::filesystem::path>& environment_hdr_file_;
   EnvironmentTextureData environment_texture_;
+  EmissiveBuffer emissive_buffer_;
+  AliasTable emissive_alias_table_;
   BVH bvh_;
 
   /* Constructor */
@@ -37,6 +42,12 @@ class SceneData {
       environment_hdr_file_(scene.impl_->environment_hdr_file_),
       environment_texture_(LoadEnvironmentTexture(
           environment_hdr_file_, scene.impl_->environment_texture_)),
+      emissive_buffer_(scene),
+      emissive_alias_table_(
+          emissive_buffer_.Data()
+          | std::views::transform([](const EmissivePrim& prim) -> double {
+              return prim.weight;
+            })),
       bvh_(scene) {
   }
 

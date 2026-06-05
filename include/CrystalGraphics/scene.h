@@ -31,6 +31,7 @@ class Scene {
   friend class BVH;
   friend class TLAS;
   friend class BLAS;
+  friend class EmissiveBuffer;
 };
 
 std::expected<Scene, Error> LoadScene(std::filesystem::path file);

@@ -132,7 +132,7 @@ std::expected<Resources, Error> CreateResources(
   auto tlas_storage = CreateBVHStorage(min_offset_alignment + 4, device);
   if (!tlas_storage) return std::unexpected(tlas_storage.error());
   /* Blas Storage */
-  auto blas_storage = CreateBVHStorage(min_offset_alignment * 3 + 4, device);
+  auto blas_storage = CreateBVHStorage(min_offset_alignment * 5 + 4, device);
   if (!blas_storage) return std::unexpected(blas_storage.error());
   /* Material Textures */
   auto material_texture_array =
@@ -162,6 +162,8 @@ std::expected<Resources, Error> CreateResources(
     .idx_offset = min_offset_alignment,
     .vert_offset = min_offset_alignment * 2,
     .mat_offset = min_offset_alignment * 3,
+    .emissive_offset = min_offset_alignment * 4,
+    .alias_offset = min_offset_alignment * 5,
     .material_texture_array = std::move(*material_texture_array),
     .material_texture_sampler = std::move(*material_texture_sampler),
     .environment_texture = std::move(*environment_texture),
@@ -232,6 +234,8 @@ std::expected<bool, Error> AssertStorageSize(const SceneData& scene_data,
   const auto& bvh = scene_data.bvh_;
   const auto& vertices = scene_data.vertices_;
   const auto& materials = scene_data.materials_;
+  const auto& emissive_prims = scene_data.emissive_buffer_.Data();
+  const auto& alias_table = scene_data.emissive_alias_table_.Data();
 
   /* TLAS Nodes & Instances */
   std::size_t tlas_nodes_size = bvh.TLAS().Nodes().size() * sizeof(TLASNode);
@@ -251,6 +255,8 @@ std::expected<bool, Error> AssertStorageSize(const SceneData& scene_data,
   std::size_t indices_size = bvh.BLAS().Indices().size() * sizeof(Index);
   std::size_t vertices_size = vertices.size() * sizeof(Vertex);
   std::size_t materials_size = materials.size() * sizeof(Material);
+  std::size_t emissive_size = emissive_prims.size() * sizeof(EmissivePrim);
+  std::size_t alias_size = alias_table.size() * sizeof(AliasTableEntry);
   std::size_t idx_offset = std::max((blas_nodes_size + min_offset_alignment - 1)
                                         & ~(min_offset_alignment - 1),
                                     resources.idx_offset);
@@ -262,17 +268,30 @@ std::expected<bool, Error> AssertStorageSize(const SceneData& scene_data,
       std::max((vert_offset + vertices_size + min_offset_alignment - 1)
                    & ~(min_offset_alignment - 1),
                resources.mat_offset);
+  std::size_t emissive_offset =
+      std::max((mat_offset + materials_size + min_offset_alignment - 1)
+                   & ~(min_offset_alignment - 1),
+               resources.emissive_offset);
+  std::size_t alias_offset =
+      std::max((emissive_offset + emissive_size + min_offset_alignment - 1)
+                   & ~(min_offset_alignment - 1),
+               resources.alias_offset);
   auto assert_blas_res =
-      assert_storage(resources.scene_storage, mat_offset + materials_size);
+      assert_storage(resources.scene_storage, alias_offset + alias_size);
   bool idx_offset_change = idx_offset != resources.idx_offset;
   resources.idx_offset = idx_offset;
   bool vert_offset_change = vert_offset != resources.vert_offset;
   resources.vert_offset = vert_offset;
   bool mat_offset_change = mat_offset != resources.mat_offset;
   resources.mat_offset = mat_offset;
+  bool emissive_offset_change = emissive_offset != resources.emissive_offset;
+  resources.emissive_offset = emissive_offset;
+  bool alias_offset_change = alias_offset != resources.alias_offset;
+  resources.alias_offset = alias_offset;
   if (!assert_blas_res) return std::unexpected(assert_blas_res.error());
   return *assert_blas_res || *assert_tlas_res || inst_offset_change
-      || idx_offset_change || vert_offset_change || mat_offset_change;
+      || idx_offset_change || vert_offset_change || mat_offset_change
+      || emissive_offset_change || alias_offset_change;
 }
 
 std::expected<SceneWriteResult, Error> WriteScene(
@@ -294,6 +313,8 @@ std::expected<SceneWriteResult, Error> WriteScene(
 
   const auto& vertices = scene_data.vertices_;
   const auto& materials = scene_data.materials_;
+  const auto& emissive_prims = scene_data.emissive_buffer_.Data();
+  const auto& alias_table = scene_data.emissive_alias_table_.Data();
   const auto& bvh = scene_data.bvh_;
   /* Write buffer. */
   /* TLAS Nodes */
@@ -329,6 +350,20 @@ std::expected<SceneWriteResult, Error> WriteScene(
                     resources.mat_offset,
                     static_cast<const void*>(materials.data()),
                     materials.size() * sizeof(Material));
+  /* Emissive Primitives */
+  if (!emissive_prims.empty()) {
+    queue.writeBuffer(*resources.scene_storage,
+                      resources.emissive_offset,
+                      static_cast<const void*>(emissive_prims.data()),
+                      emissive_prims.size() * sizeof(EmissivePrim));
+  }
+  /* Emissive Alias Table */
+  if (!alias_table.empty()) {
+    queue.writeBuffer(*resources.scene_storage,
+                      resources.alias_offset,
+                      static_cast<const void*>(alias_table.data()),
+                      alias_table.size() * sizeof(AliasTableEntry));
+  }
   if (auto e = global::error_stack.Pop()) return std::unexpected(*e);
   return SceneWriteResult{
     .storage_changed = *assert_size_res,

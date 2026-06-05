@@ -25,6 +25,8 @@ std::expected<ComputeBindGroup2, Error> CreateComputeBindGroup2(
     std::size_t idx_offset,
     std::size_t vert_offset,
     std::size_t mat_offset,
+    std::size_t emissive_offset,
+    std::size_t alias_offset,
     ::wgpu::Texture& material_texture_array,
     ::wgpu::Sampler& material_texture_sampler,
     ::wgpu::Texture& environment_texture,
@@ -85,7 +87,7 @@ std::expected<ComputeBindGroupLayouts, Error> CreateComputeBindGroupLayouts(
   if (auto e = global::error_stack.Pop()) return std::unexpected(*e);
 
   /* Group 2 */
-  std::array<::wgpu::BindGroupLayoutEntry, 10> group2entries{
+  std::array<::wgpu::BindGroupLayoutEntry, 12> group2entries{
     /* TLAS Nodes */
     [&] -> ::wgpu::BindGroupLayoutEntry {
       ::wgpu::BindGroupLayoutEntry tlas_entry{ ::wgpu::Default };
@@ -173,6 +175,22 @@ std::expected<ComputeBindGroupLayouts, Error> CreateComputeBindGroupLayouts(
       sampler_entry.sampler.type = ::wgpu::SamplerBindingType::NonFiltering;
       return sampler_entry;
     }(),
+    /* Emissive Primitives */
+    [&] -> ::wgpu::BindGroupLayoutEntry {
+      ::wgpu::BindGroupLayoutEntry emissive_entry{ ::wgpu::Default };
+      emissive_entry.binding = 10;
+      emissive_entry.visibility = ::wgpu::ShaderStage::Compute;
+      emissive_entry.buffer.type = ::wgpu::BufferBindingType::ReadOnlyStorage;
+      return emissive_entry;
+    }(),
+    /* Emissive Alias Table */
+    [&] -> ::wgpu::BindGroupLayoutEntry {
+      ::wgpu::BindGroupLayoutEntry alias_entry{ ::wgpu::Default };
+      alias_entry.binding = 11;
+      alias_entry.visibility = ::wgpu::ShaderStage::Compute;
+      alias_entry.buffer.type = ::wgpu::BufferBindingType::ReadOnlyStorage;
+      return alias_entry;
+    }(),
   };
   ::wgpu::BindGroupLayout group2 =
       device.createBindGroupLayout([&] -> ::wgpu::BindGroupLayoutDescriptor {
@@ -201,6 +219,8 @@ std::expected<ComputeBindGroups, Error> CreateComputeBindGroups(
     std::size_t idx_offset,
     std::size_t vert_offset,
     std::size_t mat_offset,
+    std::size_t emissive_offset,
+    std::size_t alias_offset,
     ::wgpu::Texture& material_texture_array,
     ::wgpu::Sampler& material_texture_sampler,
     ::wgpu::Texture& environment_texture,
@@ -260,6 +280,8 @@ std::expected<ComputeBindGroups, Error> CreateComputeBindGroups(
                                         idx_offset,
                                         vert_offset,
                                         mat_offset,
+                                        emissive_offset,
+                                        alias_offset,
                                         material_texture_array,
                                         material_texture_sampler,
                                         environment_texture,
@@ -282,6 +304,8 @@ std::expected<void, Error> UpdateComputeBindGroup2(
     std::size_t idx_offset,
     std::size_t vert_offset,
     std::size_t mat_offset,
+    std::size_t emissive_offset,
+    std::size_t alias_offset,
     ::wgpu::Texture& material_texture_array,
     ::wgpu::Sampler& material_texture_sampler,
     ::wgpu::Texture& environment_texture,
@@ -294,6 +318,8 @@ std::expected<void, Error> UpdateComputeBindGroup2(
                                         idx_offset,
                                         vert_offset,
                                         mat_offset,
+                                        emissive_offset,
+                                        alias_offset,
                                         material_texture_array,
                                         material_texture_sampler,
                                         environment_texture,
@@ -404,6 +430,8 @@ std::expected<ComputeBindGroup2, Error> CreateComputeBindGroup2(
     std::size_t idx_offset,
     std::size_t vert_offset,
     std::size_t mat_offset,
+    std::size_t emissive_offset,
+    std::size_t alias_offset,
     ::wgpu::Texture& material_texture_array,
     ::wgpu::Sampler& material_texture_sampler,
     ::wgpu::Texture& environment_texture,
@@ -447,7 +475,7 @@ std::expected<ComputeBindGroup2, Error> CreateComputeBindGroup2(
     return std::unexpected(*e);
   }
 
-  std::array<::wgpu::BindGroupEntry, 10> group2entries{
+  std::array<::wgpu::BindGroupEntry, 12> group2entries{
     /* TLAS Nodes */
     [&] -> ::wgpu::BindGroupEntry {
       ::wgpu::BindGroupEntry bvh{ ::wgpu::Default };
@@ -498,7 +526,7 @@ std::expected<ComputeBindGroup2, Error> CreateComputeBindGroup2(
       materials.binding = 5;
       materials.buffer = blas_idx_vert_storage;
       materials.offset = mat_offset;
-      materials.size = blas_idx_vert_storage.getSize() - mat_offset;
+      materials.size = emissive_offset - mat_offset;
       return materials;
     }(),
     /* Material Texture Array */
@@ -528,6 +556,24 @@ std::expected<ComputeBindGroup2, Error> CreateComputeBindGroup2(
       sampler.binding = 9;
       sampler.sampler = environment_texture_sampler;
       return sampler;
+    }(),
+    /* Emissive Primitives */
+    [&] -> ::wgpu::BindGroupEntry {
+      ::wgpu::BindGroupEntry emissive{ ::wgpu::Default };
+      emissive.binding = 10;
+      emissive.buffer = blas_idx_vert_storage;
+      emissive.offset = emissive_offset;
+      emissive.size = alias_offset - emissive_offset;
+      return emissive;
+    }(),
+    /* Emissive Alias Table */
+    [&] -> ::wgpu::BindGroupEntry {
+      ::wgpu::BindGroupEntry alias{ ::wgpu::Default };
+      alias.binding = 11;
+      alias.buffer = blas_idx_vert_storage;
+      alias.offset = alias_offset;
+      alias.size = blas_idx_vert_storage.getSize() - alias_offset;
+      return alias;
     }(),
   };
   ::wgpu::BindGroup group2{

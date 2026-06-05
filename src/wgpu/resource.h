@@ -24,7 +24,8 @@ struct Resources {
   ::wgpu::raii::Buffer tlas_storage;
   std::size_t inst_offset;
   ::wgpu::raii::Buffer scene_storage;
-  std::size_t idx_offset, vert_offset, mat_offset;
+  std::size_t idx_offset, vert_offset, mat_offset, emissive_offset,
+      alias_offset;
   ::wgpu::raii::Texture material_texture_array;
   ::wgpu::raii::Sampler material_texture_sampler;
   ::wgpu::raii::Texture environment_texture;

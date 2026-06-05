@@ -4,7 +4,6 @@
 #include <CrystalSpatial/spatial.h>
 
 #include <cassert>
-#include <cstdint>
 #include <filesystem>
 #include <optional>
 #include <ranges>
