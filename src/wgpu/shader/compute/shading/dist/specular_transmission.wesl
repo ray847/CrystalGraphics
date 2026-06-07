@@ -42,8 +42,6 @@ fn refractDir(
     curr_dir: math::Vec,
     relative_ior: IOR
 ) -> math::Vec {
-    let relative_ior_re: f32 =
-        (relative_ior.r.re + relative_ior.g.re + relative_ior.b.re) / 3.0f;
     let normal = orientedNormal(curr_dir, shading_norm);
-    return refract(curr_dir, normal, relative_ior_re);
+    return refract(curr_dir, normal, relative_ior.re);
 }

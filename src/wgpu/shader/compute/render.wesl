@@ -2,12 +2,17 @@ import package::compute::math;
 import package::compute::physics;
 import package::compute::trace;
 
-fn render(ray: math::Ray) -> physics::Luminance {
-    const SAMPLES: u32 = 1;
-    var radiance = physics::Radiance();
-    for (var i: u32; i < SAMPLES; i++) {
-        radiance += trace::trace(ray);
+const SAMPLE_COUNT: u32 = 8;
+
+fn render(ray: math::Ray) -> physics::SRGB {
+    var luminance = physics::Luminance();
+    for (var i: u32; i < SAMPLE_COUNT; i++) {
+        let wavelength_sample = physics::sampleWavelength();
+        let radiance = trace::trace(ray, wavelength_sample.wavelength);
+        luminance += \
+            physics::illuminate(wavelength_sample.wavelength, radiance) /
+            wavelength_sample.prob /
+            f32(SAMPLE_COUNT);
     }
-    radiance /= f32(SAMPLES);
-    return physics::illuminate(radiance);
+    return physics::luminanceToSrgb(luminance);
 }

@@ -6,6 +6,6 @@ import super::material::{Material, material};
 
 fn emission(
     material: Material,
-) -> vec3f {
+) -> physics::Radiance {
     return material.emission;
 }

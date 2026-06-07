@@ -12,11 +12,13 @@
 
 #title()
 
-= Light Transport Physics <physics>
+= Physics
+
+== Light Transport <physics-light_transport>
 
 This section talks about how *physics* explain the behavior of light transport on a *macro* level. Sometimes we will dive to micro levels to explain how certain patterns develop but really we only care about what we can percieve as behaviors on a macro level.
 
-== Surface Level
+=== Surface Level
 
 This section talks about what happens when light meets the surface of objects.
 Notice the object surface we talk about here can be either surface of solids, or the surface of a soap bubble. So it can be more precisely discribed as positions with sudden material changes.
@@ -172,7 +174,7 @@ The light transport behavior can be affected by the following phenomenons:
   }),
 )
 
-== Medium Level
+=== Medium Level
 
 This section talks about what happens when light travels through some medium.
 For now we assume the properties of the medium doesn't change within a measurable volumn.
@@ -180,7 +182,25 @@ For now we assume the properties of the medium doesn't change within a measurabl
 In the simplest scenario, when light travels through a vacume, nothing really happens.
 However, the complexity scales substantially when scattering & absorption happens.
 
-= Light Transport Modeling
+== Spectrum
+
+The "percieved brighness", a.k.a. luminance, of a spectrum can be expressed with the following integral:
+
+#let Luminance = $Y$
+#let wavelength = $lambda$
+$
+  Luminance = integral_wavelength L(wavelength) V(wavelength) dif wavelength,
+$
+where function $V$ denotes the spectral response curve.
+
+For humans, which have 3 types of #link("https://en.wikipedia.org/wiki/Photoreceptor_cell")[photoreceptor cells], there would be 3 response curves (except for the visually impaired).
+
+#figure(
+  image("asset/Cones_SMJ2_E.svg"),
+  caption: [Human Spectral Response Curve],
+)
+
+= Before Implementation
 
 #let wo = $arrow(w)_o$
 #let wi = $arrow(w)_i$
@@ -197,6 +217,8 @@ However, the complexity scales substantially when scattering & absorption happen
 #let curr = $"curr"$
 #let next = $"next"$
 
+This section talks about mathematical and physics tricks used in the implementation. This section _should not_ contain any implementation related information but rather some techniques/approximations that makes computing possible.
+
 / The Rendering Equation:
 
 $
@@ -204,7 +226,7 @@ $
   L_e (wo) + integral_wi L(wi) f(wo, wi) cos angle(wi, norm) dif wi
 $ <eq:rendering-equation>
 
-== Model Behavior
+== Light Transport Model Behavior
 
 Generally speaking, the outward radiance $L(wo)$ is a cumulative product of 2 *types* of inward radiance $L(wi)$:
 - Continuous: Diffuse
@@ -230,7 +252,7 @@ $
   L_o (wo) = sum_wi L_i (wi) f(wo, wi) cos angle(wi, norm)
 $
 
-== Transport Models
+== Light Transport Models
 
 In the real world most materials exhibit combinations of reflection & scatter behaviors, but it is easier to discuss them seperately since the underlying physical process is different and we use different approximation models.
 
@@ -399,7 +421,34 @@ $
 
 Light sampling techniques only have a PDF since the BSDF used should come from the transporte models.
 
+== Multiple Importance Sampling (MIS)
+
+== Spectrum
+
+
+
+We use the CIE XYZ color space as the source of truth for outputing RGB colors.
+
+To be more specific, the conversion process from randiance from discretely sampled wavelengths to RGB look something like this:
+
+#align(center, rect(
+  inset: 15pt,
+  grid(
+    columns: 7,
+    align: horizon,
+    [RGB (Material)],
+    sym.arrow.long,
+    wavelength,
+    stack("Monte Carlo", sym.arrow.long, "Estimator"),
+    [XYZ],
+    sym.arrow.long,
+    [RGB],
+  ),
+))
+
 == Summary
+
+/ Radiance:
 
 To sum up the above modeling, the complete rendering equation we simulate looks something like this:
 
@@ -412,6 +461,38 @@ $
   & approx L_e (p) + sum_sampleModel 1 / n_sampleModel sum_(dir_next) alpha_sampleModel (dir_next) (sum_transportModel f_transportModel (dir_next)) / (prob_sampleModel (dir_curr, dir_next)), \
   "where" & sampleModel in {"Sample Model"} and transportModel in {"Transport Model"}
 $
+
+/ Spectrum:
+
+And the spectrum part:
+
+$
+  X = integral_wavelength overline(x)(wavelength)L(wavelength) dif wavelength \
+  Y = integral_wavelength overline(y)(wavelength)L(wavelength) dif wavelength \
+  Z = integral_wavelength overline(z)(wavelength)L(wavelength) dif wavelength \
+$
+
+where $overline(x), overline(y), overline(z)$ denote the color matching functions:
+
+#figure(
+  image(width: 60%, "asset/CIE_1931_XYZ_Color_Matching_Functions.svg"),
+  caption: [CIE 1931 XYZ Color Matching Functions],
+)<fig:CIE_1931_XYZ_Color_Matching_Functions>
+
+Then calculate the RGB values from the XYZ color space:
+
+$
+  vec(R, G, B) =
+  mat(
+    2.36461385, -0.89654057, -0.46807328;
+    -0.51516621, 1.4264081, 0.0887581;
+    0.0052037, -0.01440816, 1.00920446
+  ) vec(X, Y, Z)
+$
+
+#secondary[
+  source: https://en.wikipedia.org/wiki/CIE_1931_color_space
+]
 
 = Implementation
 
@@ -463,7 +544,7 @@ Knowing the material, we can make much higher quality samples with certain proba
 == GL Transmission Format (glTF)
 
 The glTF format is used as the accepted file format.
-Inorder to perform the physics based rendering techniuqes from @physics, we need to use the material information provided by the file format to determine which scatter model or combination of models to use. In addition, we also need to translate the material information to physics metrics to perform precise calculations. It is helpful to think of the process into 2 steps:
+Inorder to perform the physics based rendering techniuqes from @physics-light_transport, we need to use the material information provided by the file format to determine which scatter model or combination of models to use. In addition, we also need to translate the material information to physics metrics to perform precise calculations. It is helpful to think of the process into 2 steps:
 #align(center, rect[glTF material #sym.arrow physics properties #sym.arrow reflection models])
 
 / glTF Material Information:
@@ -497,7 +578,7 @@ We have this table that shows how physics properties derive from the material in
 #table(
   columns: (1fr, 2fr),
   table.header([Physics Property (Notation)], [Formula]),
-  [Diffuse Reflectance ($R$)], $#raw("base color") dot (1 - #raw("metallic"))$,
+  [Diffuse Reflectance ($R$)], $"Smits Reconstruction" dot (1 - #raw("metallic")) dot (1 - #raw("transmission"))$,
 
   [ior ($eta$)],
   $eta & = n + k i, \
@@ -537,6 +618,38 @@ We have this table that shows how physics properties derive from the material in
                       k_i^2 & = (4n) / (1 - #raw("base color") _i) - (n + 1)^2 \ $
 ]
 
-== Tracing
+/ Smits Reconstruction<smits-reconstruction>:
 
+Suppose ${c_1, c_2, c_3} in {r, g, b} and c_1 <= c_2 <= c_3$,
 
+$
+  "Smits"(wavelength) = c_1 S_"white"(wavelength) + (c_2 - c_1)S_(c_2 times c_3)(wavelength) + (c_3 - c_2)S_(c_3)(wavelength)
+$
+where $S_c$ denote the spectral curve for color $c$ and $c_2 times c_3$ denote the color you get by mixing $c_2$ and $c_3$.
+The actual curve data is extracted from the `colour` python package.
+
+== Spectrum Data Conversion
+
+We use an approximation of the CIE color matching functions in @fig:CIE_1931_XYZ_Color_Matching_Functions for computation:
+
+$
+  overline(x)(wavelength) & = 0.362 G_s (wavelength; 442.0, 1 / 0.0624, 1 / 0.0374) \
+                          & + 1.056 G_s (wavelength; 599.8, 1 / 0.0264, 1 / 0.0323) \
+                          & - 0.065 G_s (wavelength; 501.1, 1 / 0.0490, 1 / 0.0382) \
+  overline(y)(wavelength) & = 0.821 G_s (wavelength; 568.8, 1 / 0.0213, 1 / 0.0247) \
+                          & + 0.286 G_s (wavelength; 530.9, 1 / 0.0613, 1 / 0.0322) \
+  overline(z)(wavelength) & = 1.217 G_s (wavelength; 437.0, 1 / 0.0845, 1 / 0.0278) \
+                          & + 0.681 G_s (wavelength; 459.0, 1 / 0.0385, 1 / 0.0725)
+$
+where
+$
+  G_s (x; mu, sigma_1, sigma_2) = cases(
+    e^(- 1 / 2 ((x - mu) / sigma_1)^2)\; x < mu,
+    e^(- 1 / 2 ((x - mu) / sigma_2)^2)\; x >= mu,
+  )
+$
+
+#secondary[
+  source: Simple Analytic Approximations
+  to the CIE XYZ Color Matching Functions
+]

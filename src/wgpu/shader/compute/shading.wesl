@@ -2,19 +2,24 @@ import package::compute::math;
 import package::compute::structural;
 import package::compute::physics;
 import package::compute::lod;
-@publish
 import super::shading::{
   sample::{
-    Sample,
-    MAX_TRANSPORT_SAMPLE_COUNT,
     sample as sampleRays,
-    EMISSION_HIT_EPSILON,
   },
-  spawn_surface_ray::{spawnSurfaceRay},
   material::{material},
   collect::collect,
   emission::{emission},
 };
+
+@publish
+import super::shading::sample::{
+  Sample,
+  MAX_TRANSPORT_SAMPLE_COUNT,
+  EMISSION_HIT_EPSILON,
+};
+
+@publish
+import super::shading::spawn_surface_ray::{spawnSurfaceRay};
 
 struct ShadingPassContext {
     samples: Sample,
@@ -24,12 +29,17 @@ struct ShadingPassContext {
 
 fn forwardPass(
     curr_dir: math::Vec,
+    wavelength: physics::Wavelength,
     surface_pos: structural::SurfacePos,
     lod: lod::LOD
 ) -> ShadingPassContext {
-    let material = material(surface_pos.material_idx, surface_pos.uvs);
+    let material = material(
+        wavelength,
+        surface_pos.material_idx,
+        surface_pos.uvs
+    );
     return ShadingPassContext(
-        sampleRays(curr_dir, surface_pos, material, lod),
+        sampleRays(curr_dir, wavelength, surface_pos, material, lod),
         array<physics::Radiance, MAX_TRANSPORT_SAMPLE_COUNT>(),
         emission(material)
     );

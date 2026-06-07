@@ -1,5 +1,5 @@
 import package::compute::math;
-import package::compute::shading::material::{Material, IOR, IORChannel};
+import package::compute::shading::material::{Material, IOR};
 
 fn orientedNormal(curr_dir: math::Vec, normal: math::Vec) -> math::Vec {
     return select(normal, -normal, dot(curr_dir, normal) > 0.0f);
@@ -17,16 +17,8 @@ fn relIor(
 }
 
 fn invIor(ior: IOR) -> IOR {
-    let norm_sq = vec3f(
-        ior.r.re * ior.r.re + ior.r.im * ior.r.im,
-        ior.g.re * ior.g.re + ior.g.im * ior.g.im,
-        ior.b.re * ior.b.re + ior.b.im * ior.b.im
-    );
-    return IOR(
-        IORChannel(ior.r.re / norm_sq.r, -ior.r.im / norm_sq.r),
-        IORChannel(ior.g.re / norm_sq.g, -ior.g.im / norm_sq.g),
-        IORChannel(ior.b.re / norm_sq.b, -ior.b.im / norm_sq.b)
-    );
+    let norm_sq = ior.re * ior.re + ior.im * ior.im;
+    return IOR(ior.re / norm_sq, -ior.im / norm_sq);
 }
 
 const FRESNEL_EPSILON: f32 = 1e-6f;
@@ -35,18 +27,6 @@ fn fresnelReflectance(
     curr_dir: vec3f,
     normal: vec3f,
     material_ior: IOR
-) -> vec3f {
-    return vec3f(
-        fresnelReflectanceChannel(curr_dir, normal, material_ior.r),
-        fresnelReflectanceChannel(curr_dir, normal, material_ior.g),
-        fresnelReflectanceChannel(curr_dir, normal, material_ior.b)
-    );
-}
-
-fn fresnelReflectanceChannel(
-    curr_dir: vec3f,
-    normal: vec3f,
-    material_ior: IORChannel
 ) -> f32 {
     let outside = dot(curr_dir, normal) < 0.0f;
     let facing_normal = select(-normal, normal, outside);
@@ -83,7 +63,7 @@ fn fresnelReflectanceChannel(
     );
 }
 
-fn complexFresnelReflectance(cosine: f32, material_ior: IORChannel) -> f32 {
+fn complexFresnelReflectance(cosine: f32, material_ior: IOR) -> f32 {
     let real_ior = material_ior.re;
     let imaginary_ior = material_ior.im;
     let real_sq = real_ior * real_ior;

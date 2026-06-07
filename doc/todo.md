@@ -12,7 +12,7 @@
     2. Build BVH. Procedure:
       AVL Tree + 8-Wide BVH
 
-3. Path Tracing
+3. ~~Path Tracing~~
   * Upload Material Data
   * Diffuse Reflection
   * Specular Reflection
@@ -23,6 +23,8 @@
   * Rough Transmission
 
 4. Spectral
+
+5. Use Override for pathtracing constants
 
 ## The Distant Future
 

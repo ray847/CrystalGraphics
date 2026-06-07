@@ -119,7 +119,7 @@ fn sampleNorm(
 }
 
 fn relativeIor(ior: IOR) -> f32 {
-    return max((ior.r.re + ior.g.re + ior.b.re) / 3.0f, VNDF_EPSILON);
+    return max(ior.re, VNDF_EPSILON);
 }
 
 fn transmissionIor(relative_ior: IOR) -> f32 {

@@ -1,8 +1,16 @@
-import super::radiance::Radiance;
+import super::{
+    cie,
+    radiance::Radiance,
+    wavelength::Wavelength,
+};
 
 alias Luminance = vec3f;
 
-fn illuminate(radiance: Radiance) -> Luminance {
-    let mapped = vec3f(1.0f) - exp(-max(radiance, vec3f(0.0f)));
-    return Luminance(pow(mapped, vec3f(1.0f / 2.2f)));
+/**
+ * Convert the input radiance to the CIE XYZ color space.
+ * 
+ */
+fn illuminate(wavelength: Wavelength, radiance: Radiance) -> Luminance {
+    let average_integral = cie::xyzMatchSumIntegral(380.0f, 720.0f) / 3.0f;
+    return Luminance(cie::xyzMatch(wavelength) * radiance / average_integral);
 }

@@ -5,7 +5,7 @@ import package::compute::{
   structural,
 };
 import super::{
-  material::{Material, IORChannel},
+  material::Material,
   pdf::{
     diffuse::{
       dist as diffusePdf,
@@ -43,16 +43,16 @@ import super::{
   util::{fresnelReflectance, orientedNormal, relIor},
 };
 
-const MAX_TRANSPORT_SAMPLE_COUNT: u32 = 4u;
-const MAX_EMISSION_SAMPLE_COUNT: u32 = 4u;
-const MAX_DIFFUSE_COUNT: u32 = 4u;
-const MAX_ROUGH_COUNT: u32 = 4u;
+const MAX_TRANSPORT_SAMPLE_COUNT: u32 = 2u;
+const MAX_EMISSION_SAMPLE_COUNT: u32 = 2u;
+const MAX_DIFFUSE_COUNT: u32 = 2u;
+const MAX_ROUGH_COUNT: u32 = 2u;
 const MIN_SAMPLE_WEIGHT: f32 = 1e-6f;
 const EMISSION_HIT_EPSILON: f32 = 1e-3f;
 
 struct TransportSample {
     dir: math::Vec,
-    coeff: vec3f,
+    coeff: physics::Radiance,
 };
 
 struct EmissionSample {
@@ -88,20 +88,18 @@ struct SampleCounts {
 
 fn sample(
     curr_dir: math::Vec,
+    wavelength: physics::Wavelength,
     surface_pos: structural::SurfacePos,
     material: Material,
     curr_lod: lod::LOD
 ) -> Sample {
     let sample_heuristics = heuristics(material);
     let sample_counts = counts(sample_heuristics, curr_lod);
-    return sampleModels(curr_dir, surface_pos, material, sample_counts);
+    return sampleModels(curr_dir, wavelength, surface_pos, material, sample_counts);
 }
 
 fn heuristics(material: Material) -> SampleHeuristics {
-    let diffuse_heuristic = max(
-        material.diffuse_reflectance.r,
-        max(material.diffuse_reflectance.g, material.diffuse_reflectance.b)
-    );
+    let diffuse_heuristic = material.diffuse_reflectance;
     let reflection_heuristic = normalReflectance(material);
     let transmission_heuristic = material.transmission;
     let specular_reflect_heuristic = select(
@@ -138,25 +136,15 @@ fn heuristics(material: Material) -> SampleHeuristics {
 }
 
 fn normalReflectance(material: Material) -> f32 {
-    return max(
-        normalReflectanceChannel(material.ior.r),
-        max(
-            normalReflectanceChannel(material.ior.g),
-            normalReflectanceChannel(material.ior.b)
-        )
-    );
-}
-
-fn normalReflectanceChannel(channel: IORChannel) -> f32 {
-    let real_offset_low = channel.re - 1.0f;
-    let real_offset_high = channel.re + 1.0f;
-    let imaginary_squared = channel.im * channel.im;
+    let real_offset_low = material.ior.re - 1.0f;
+    let real_offset_high = material.ior.re + 1.0f;
+    let imaginary_squared = material.ior.im * material.ior.im;
     return clamp(
         (real_offset_low * real_offset_low + imaginary_squared)
             / max(
-                real_offset_high * real_offset_high + imaginary_squared,
-                MIN_SAMPLE_WEIGHT
-            ),
+            real_offset_high * real_offset_high + imaginary_squared,
+            MIN_SAMPLE_WEIGHT
+        ),
         0.0f,
         1.0f
     );
@@ -244,6 +232,7 @@ fn capTransportCounts(
 
 fn sampleModels(
     curr_dir: math::Vec,
+    wavelength: physics::Wavelength,
     surface_pos: structural::SurfacePos,
     material: Material,
     sample_counts: SampleCounts
@@ -303,7 +292,12 @@ fn sampleModels(
     }
 
     for (var i: u32 = 0u; i < sample_counts.light; i++) {
-        let model_sample = emissionSample(curr_dir, surface_pos, material);
+        let model_sample = emissionSample(
+            curr_dir,
+            wavelength,
+            surface_pos,
+            material
+        );
         addEmissionSample(
             &res,
             curr_dir,
@@ -320,7 +314,7 @@ fn sampleModels(
 fn addTransportSample(
     samples: ptr<function, Sample>,
     next_dir: math::Vec,
-    coeff: vec3f
+    coeff: physics::Radiance
 ) {
     let idx = (*samples).transport_count;
     (*samples).transport_samples[idx] = TransportSample(next_dir, coeff);
@@ -366,20 +360,20 @@ fn diffuseCoeff(
     surface_pos: structural::SurfacePos,
     material: Material,
     sample_counts: SampleCounts
-) -> vec3f {
+) -> physics::Radiance {
     let macro_norm = orientedNormal(curr_dir, surface_pos.shading_norm);
     let next_projection = max(dot(next_dir, macro_norm), 0.0f);
-    return material.diffuse_reflectance.rgb
+    return material.diffuse_reflectance
         * diffuseDist(curr_dir, next_dir, surface_pos, material)
         * next_projection
         / balancePdfDenominator(
-            curr_dir,
-            next_dir,
-            surface_pos,
-            material,
-            sample_counts,
-            -1.0f
-        );
+        curr_dir,
+        next_dir,
+        surface_pos,
+        material,
+        sample_counts,
+        -1.0f
+    );
 }
 
 fn specularReflectCoeff(
@@ -388,18 +382,18 @@ fn specularReflectCoeff(
     surface_pos: structural::SurfacePos,
     material: Material,
     sample_counts: SampleCounts
-) -> vec3f {
+) -> physics::Radiance {
     let macro_norm = orientedNormal(curr_dir, surface_pos.shading_norm);
     return fresnelReflectance(curr_dir, macro_norm, material.ior)
         * specularReflectDist(curr_dir, next_dir, surface_pos, material)
         / balancePdfDenominator(
-            curr_dir,
-            next_dir,
-            surface_pos,
-            material,
-            sample_counts,
-            -1.0f
-        );
+        curr_dir,
+        next_dir,
+        surface_pos,
+        material,
+        sample_counts,
+        -1.0f
+    );
 }
 
 fn roughReflectCoeff(
@@ -408,7 +402,7 @@ fn roughReflectCoeff(
     surface_pos: structural::SurfacePos,
     material: Material,
     sample_counts: SampleCounts
-) -> vec3f {
+) -> physics::Radiance {
     let macro_norm = orientedNormal(curr_dir, surface_pos.shading_norm);
     let next_projection = max(dot(next_dir, macro_norm), 0.0f);
     let micro_norm = reflectionMicroNorm(curr_dir, next_dir);
@@ -416,13 +410,13 @@ fn roughReflectCoeff(
         * roughReflectDist(curr_dir, next_dir, surface_pos, material)
         * next_projection
         / balancePdfDenominator(
-            curr_dir,
-            next_dir,
-            surface_pos,
-            material,
-            sample_counts,
-            -1.0f
-        );
+        curr_dir,
+        next_dir,
+        surface_pos,
+        material,
+        sample_counts,
+        -1.0f
+    );
 }
 
 fn specularTransmitCoeff(
@@ -431,19 +425,19 @@ fn specularTransmitCoeff(
     surface_pos: structural::SurfacePos,
     material: Material,
     sample_counts: SampleCounts
-) -> vec3f {
+) -> physics::Radiance {
     let macro_norm = orientedNormal(curr_dir, surface_pos.shading_norm);
     return material.transmission
         * (1.0f - fresnelReflectance(curr_dir, macro_norm, material.ior))
         * specularTransmitDist(curr_dir, next_dir, surface_pos, material)
         / balancePdfDenominator(
-            curr_dir,
-            next_dir,
-            surface_pos,
-            material,
-            sample_counts,
-            -1.0f
-        );
+        curr_dir,
+        next_dir,
+        surface_pos,
+        material,
+        sample_counts,
+        -1.0f
+    );
 }
 
 fn roughTransmitCoeff(
@@ -452,7 +446,7 @@ fn roughTransmitCoeff(
     surface_pos: structural::SurfacePos,
     material: Material,
     sample_counts: SampleCounts
-) -> vec3f {
+) -> physics::Radiance {
     let macro_norm = orientedNormal(curr_dir, surface_pos.shading_norm);
     let next_projection = max(dot(-next_dir, macro_norm), 0.0f);
     let micro_norm = transmissionMicroNorm(curr_dir, next_dir, macro_norm,
@@ -461,13 +455,13 @@ fn roughTransmitCoeff(
         * roughTransmitDist(curr_dir, next_dir, surface_pos, material)
         * next_projection
         / balancePdfDenominator(
-            curr_dir,
-            next_dir,
-            surface_pos,
-            material,
-            sample_counts,
-            -1.0f
-        );
+        curr_dir,
+        next_dir,
+        surface_pos,
+        material,
+        sample_counts,
+        -1.0f
+    );
 }
 
 fn emissionCoeff(
@@ -475,7 +469,7 @@ fn emissionCoeff(
     next_dir: math::Vec,
     surface_pos: structural::SurfacePos,
     material: Material
-) -> vec3f {
+) -> physics::Radiance {
     let macro_norm = orientedNormal(curr_dir, surface_pos.shading_norm);
     let reflection_micro_norm = reflectionMicroNorm(curr_dir, next_dir);
     let transmission_micro_norm = transmissionMicroNorm(
@@ -484,15 +478,15 @@ fn emissionCoeff(
         macro_norm,
         material
     );
-    return material.diffuse_reflectance.rgb
+    return material.diffuse_reflectance
         * diffuseDist(curr_dir, next_dir, surface_pos, material)
         + fresnelReflectance(curr_dir, reflection_micro_norm, material.ior)
         * roughReflectDist(curr_dir, next_dir, surface_pos, material)
         + (1.0f - fresnelReflectance(
-            curr_dir,
-            transmission_micro_norm,
-            material.ior
-        ))
+        curr_dir,
+        transmission_micro_norm,
+        material.ior
+    ))
         * roughTransmitDist(curr_dir, next_dir, surface_pos, material);
 }
 
@@ -541,10 +535,7 @@ fn transmissionMicroNorm(
     material: Material
 ) -> math::Vec {
     let relative_ior = relIor(macro_norm, curr_dir, material);
-    let relative_ior_value = max(
-        (relative_ior.r.re + relative_ior.g.re + relative_ior.b.re) / 3.0f,
-        MIN_SAMPLE_WEIGHT
-    );
+    let relative_ior_value = max(relative_ior.re, MIN_SAMPLE_WEIGHT);
     let micro_norm_unnormalized = relative_ior_value * curr_dir - next_dir;
     if dot(micro_norm_unnormalized, micro_norm_unnormalized)
         <= MIN_SAMPLE_WEIGHT {

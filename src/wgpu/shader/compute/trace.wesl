@@ -3,10 +3,9 @@ import package::compute::math;
 import package::compute::physics;
 import package::compute::shading;
 import package::compute::structural;
+import package::compute::environment;
 
-const MAX_TRACE_DEPTH: u32 = lod::MAX_DEPTH;
-
-@group(2) @binding(8) var environment_texture: texture_2d<f32>;
+const MAX_TRACE_DEPTH: u32 = 32u;
 
 struct Stack {
     /* Argument */
@@ -17,25 +16,22 @@ struct Stack {
     shading_pass_context: shading::ShadingPassContext,
     iter: u32,
     in_recurse: bool,
-    /* Return */
-    surface_radiance: physics::Radiance,
 };
 
-fn trace(ray: math::Ray) -> physics::Radiance {
+fn trace(ray: math::Ray, wavelength: physics::Wavelength) -> physics::Radiance {
     var ret: physics::Radiance;
     var stk = array<Stack, MAX_TRACE_DEPTH>(); // zero initialized
     var top: i32 = 0;
     /* Write first argument. */
     stk[top].ray = ray;
-    stk[top].lod = lod::LOD(0);
     while top >= 0 {
-        /* First Execution */
-        if !stk[top].in_recurse {
+        if !stk[top].in_recurse { // first exection
 
             stk[top].hit_info = structural::rayHit(stk[top].ray);
+
             if !stk[top].hit_info.travel_info.hit {
                 /* Return */
-                ret = environmentRadiance(stk[top].ray.dir);
+                ret = environment::radiance(stk[top].ray.dir, wavelength);
                 stk[top] = Stack(); // clear stack frame
                 top--;
                 continue;
@@ -47,45 +43,30 @@ fn trace(ray: math::Ray) -> physics::Radiance {
                 stk[top] = Stack(); // clear stack frame
                 top--;
                 continue;
-            } else {
-                let curr_dir = stk[top].ray.dir;
+            }
+
+            else {
                 /* Shading forward pass. */
                 stk[top].shading_pass_context = shading::forwardPass(
-                    curr_dir,
+                    stk[top].ray.dir,
+                    wavelength,
                     stk[top].hit_info.surface_pos,
                     stk[top].lod
                 );
                 stk[top].iter = 0;
                 stk[top].in_recurse = true;
-                /* Emission ray tracing. */
-                for (var i: u32; i < stk[top].shading_pass_context.samples.emission_count; i++) {
-                    let emission_sample = \
-                        stk[top].shading_pass_context.samples.emission_samples[i];
-                    let hit_info = structural::rayHit(
-                        shading::spawnSurfaceRay(
-                            stk[top].hit_info.surface_pos,
-                            emission_sample.dir
-                        )
-                    );
-                    if hit_info.travel_info.hit &&
-                    hit_info.travel_info.dist <
-                        emission_sample.expected_dist
-                        - shading::EMISSION_HIT_EPSILON {
-                        stk[top].shading_pass_context.samples.emission_samples[i].radiance = \
-                        physics::Radiance();
-                    }
-                }
+                solveEmission(
+                    stk[top].hit_info.surface_pos,
+                    &(stk[top].shading_pass_context)
+                );
             }
-        }
-        /* Collect Return Value */
-        else {
+        } else { // in loop, collect return value
             stk[top].shading_pass_context.transport_radiance[stk[top].iter - 1] = ret;
         }
 
         /* Sample Loop */
-        if stk[top].iter
-            < stk[top].shading_pass_context.samples.transport_count {
-            /* Recursion Call */
+        if stk[top].iter <
+            stk[top].shading_pass_context.samples.transport_count { // recursion
             stk[top + 1].ray = shading::spawnSurfaceRay(
                 stk[top].hit_info.surface_pos,
                 stk[top].shading_pass_context.samples.transport_samples[stk[top].iter].dir
@@ -94,10 +75,7 @@ fn trace(ray: math::Ray) -> physics::Radiance {
             stk[top].iter += 1;
             top++;
             continue;
-        } else {
-            /* Return */
-            /* Input radiance. */
-            let curr_dir = stk[top].ray.dir;
+        } else { // return
             ret = shading::backwardPass(stk[top].shading_pass_context);
             stk[top] = Stack(); // clear stack frame
             top--;
@@ -107,22 +85,24 @@ fn trace(ray: math::Ray) -> physics::Radiance {
     return ret;
 }
 
-fn environmentRadiance(dir: vec3f) -> physics::Radiance {
-    let env_uv = environmentUv(normalize(dir));
-    return physics::Radiance(environmentTexel(env_uv).rgb);
-}
-
-fn environmentTexel(uv: vec2f) -> vec4f {
-    let dims = textureDimensions(environment_texture);
-    let wrapped_u = uv.x - floor(uv.x);
-    let clamped_v = clamp(uv.y, 0.0f, 0.999999f);
-    let x = min(dims.x - 1u, u32(wrapped_u * f32(dims.x)));
-    let y = min(dims.y - 1u, u32(clamped_v * f32(dims.y)));
-    return textureLoad(environment_texture, vec2i(i32(x), i32(y)), 0);
-}
-
-fn environmentUv(dir: vec3f) -> vec2f {
-    let u = atan2(dir.y, dir.x) / (2.0f * math::PI) + 0.5f;
-    let v = acos(clamp(dir.z, -1.0f, 1.0f)) / math::PI;
-    return vec2f(u, v);
+fn solveEmission(
+    surface_pos: structural::SurfacePos,
+    shading_pass_context: ptr<function, shading::ShadingPassContext>
+) {
+    for (var i: u32; i < (*shading_pass_context).samples.emission_count; i++) {
+        let emission_sample = \
+            (*shading_pass_context).samples.emission_samples[i];
+        let hit_info = structural::rayHit(
+            shading::spawnSurfaceRay(
+                surface_pos,
+                emission_sample.dir
+            )
+        );
+        if hit_info.travel_info.hit &&
+            hit_info.travel_info.dist <
+            (emission_sample.expected_dist - shading::EMISSION_HIT_EPSILON) {
+            (*shading_pass_context).samples.emission_samples[i].radiance = \
+                physics::Radiance();
+        }
+    }
 }

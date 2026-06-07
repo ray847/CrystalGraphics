@@ -1,1 +1,1 @@
-alias Radiance = vec3f;
+alias Radiance = f32;

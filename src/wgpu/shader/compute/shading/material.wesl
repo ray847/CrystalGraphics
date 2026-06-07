@@ -1,3 +1,6 @@
+import package::compute::physics;
+import super::smits;
+
 const GLTF_ALPHA_OPAQUE: u32 = 0u;
 const GLTF_ALPHA_MASK: u32 = 1u;
 const GLTF_ALPHA_BLEND: u32 = 2u;
@@ -5,73 +8,65 @@ const GLTF_ALPHA_BLEND: u32 = 2u;
 const MATERIAL_FLAG_DOUBLE_SIDED: u32 = 1u;
 const MATERIAL_FLAG_UNLIT: u32 = 2u;
 
-fn material(material_idx: u32, uvs: array<vec2f, 2>) -> Material {
-    return decode(materials[material_idx], uvs);
+fn material(
+    wavelength: physics::Wavelength,
+    material_idx: u32,
+    uvs: array<vec2f, 2>
+) -> Material {
+    return decode(wavelength, materials[material_idx], uvs);
 }
 
-fn decode(packed_material: PackedMaterial, uvs: array<vec2f, 2>) -> Material {
-    let base_color = baseColor(packed_material, uvs);
-    let roughness = roughness(packed_material, uvs);
-    let metallic = metallic(packed_material, uvs);
-    let transmission = transmission(packed_material, uvs);
-    let raw_ior = packed_material.ior;
-    let ior: IOR = materialIor(raw_ior, base_color.rgb, metallic);
+fn decode(
+    wavelength: physics::Wavelength,
+    packed_material: PackedMaterial,
+    uvs: array<vec2f, 2>
+) -> Material {
+    let base_color: vec4f = baseColor(packed_material, uvs);
+    let reflectance: f32 = rgbToWavelengthReflectance(
+        base_color.rgb,
+        wavelength
+    );
+    let roughness: f32 = roughness(packed_material, uvs);
+    let metallic: f32 = metallic(packed_material, uvs);
+    let transmission: f32 = transmission(packed_material, uvs);
+    let raw_ior: f32 = packed_material.ior;
+    let ior: IOR = materialIor(raw_ior, reflectance, metallic);
     let is_transmissive = metallic == 0.0f && transmission > 0.0f;
-    let emission = emission(packed_material, uvs);
+    let raw_emission: vec3f = emission(packed_material, uvs);
     return Material(
-        (1.0f - metallic) * (1.0f - transmission) * base_color,
+        (1.0f - metallic) * (1.0f - transmission) * reflectance,
         roughness * roughness,
         ior,
         transmission,
         packed_material.thickness_factor > 0,
-        emission
+        rgbToWavelengthReflectance(raw_emission, wavelength)
     );
 }
 
-struct IORChannel {
+struct IOR {
     re: f32,
     im: f32,
 };
 
-struct IOR {
-    r: IORChannel,
-    g: IORChannel,
-    b: IORChannel,
-};
-
 struct Material {
-    diffuse_reflectance: vec4f,
+    diffuse_reflectance: f32,
     microfacet_roughness: f32,
     ior: IOR,
     transmission: f32,
     volumn_transmission: bool,
-    emission: vec3f,
+    emission: f32,
 };
 
-fn materialIor(real_ior: f32, base_color: vec3f, metallic: f32) -> IOR {
+fn materialIor(real_ior: f32, reflectance: f32, metallic: f32) -> IOR {
     return IOR(
-        IORChannel(
-            real_ior,
-            metallic *
-            imaginaryIorFromReflectance(real_ior, base_color.r, base_color)
-        ),
-        IORChannel(
-            real_ior,
-            metallic *
-            imaginaryIorFromReflectance(real_ior, base_color.g, base_color)
-        ),
-        IORChannel(
-            real_ior,
-            metallic *
-            imaginaryIorFromReflectance(real_ior, base_color.b, base_color)
-        )
+        real_ior,
+        metallic * imaginaryIorFromReflectance(real_ior, reflectance)
     );
 }
 
 fn imaginaryIorFromReflectance(
     real_ior: f32,
     channel_color: f32,
-    base_color: vec3f
 ) -> f32 {
     return sqrt(
         clamp(
@@ -232,4 +227,40 @@ fn emission(material: PackedMaterial, uvs: array<vec2f, 2>) -> vec3f {
         ).rgb;
     }
     return max(strength * material.emissive_strength, vec3f(0));
+}
+
+fn rgbToWavelengthReflectance(rgb: vec3f, wavelength: physics::Wavelength) -> f32 {
+    var reflectance: f32 = 0.0f;
+    let r: f32 = rgb.r;
+    let g: f32 = rgb.g;
+    let b: f32 = rgb.b;
+    if r <= g && g <= b {
+        reflectance += r * smits::whiteReflectance(wavelength);
+        if g <= b {
+            reflectance += (g - r) * smits::cyanReflectance(wavelength);
+            reflectance += (b - g) * smits::blueReflectance(wavelength);
+        } else {
+            reflectance += (b - r) * smits::cyanReflectance(wavelength);
+            reflectance += (g - b) * smits::greenReflectance(wavelength);
+        }
+    } else if g <= r && g <= b {
+        reflectance += g * smits::whiteReflectance(wavelength);
+        if r <= b {
+            reflectance += (r - g) * smits::magentaReflectance(wavelength);
+            reflectance += (b - r) * smits::blueReflectance(wavelength);
+        } else {
+            reflectance += (b - g) * smits::magentaReflectance(wavelength);
+            reflectance += (r - b) * smits::redReflectance(wavelength);
+        }
+    } else {
+        reflectance += b * smits::whiteReflectance(wavelength);
+        if r <= g {
+            reflectance += (r - b) * smits::yellowReflectance(wavelength);
+            reflectance += (g - r) * smits::greenReflectance(wavelength);
+        } else {
+            reflectance += (g - b) * smits::yellowReflectance(wavelength);
+            reflectance += (r - g) * smits::redReflectance(wavelength);
+        }
+    }
+    return clamp(0.94f * reflectance, 0.0f, 1.0f);
 }

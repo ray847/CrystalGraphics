@@ -2,6 +2,7 @@ import package::compute::math;
 import package::compute::physics;
 import package::compute::structural;
 import package::compute::shading::material::Material;
+import package::compute::shading::smits;
 import super::sample::EmissionSample;
 
 const EMISSION_PDF_EPSILON: f32 = 1e-3f;
@@ -30,6 +31,7 @@ fn canSample() -> bool {
 
 fn sample(
     curr_dir: math::Vec,
+    wavelength: physics::Wavelength,
     surface_pos: structural::SurfacePos,
     material: Material
 ) -> EmissionSample {
@@ -74,9 +76,45 @@ fn sample(
     return EmissionSample(
         next_dir,
         solid_angle_pdf,
-        sampled_prim.emission,
+        rgbToWavelengthRadiance(sampled_prim.emission, wavelength),
         sqrt(distance_sq)
     );
+}
+
+fn rgbToWavelengthRadiance(rgb: vec3f, wavelength: physics::Wavelength) -> physics::Radiance {
+    var radiance: f32 = 0.0f;
+    let r: f32 = rgb.r;
+    let g: f32 = rgb.g;
+    let b: f32 = rgb.b;
+    if r <= g && g <= b {
+        radiance += r * smits::whiteReflectance(wavelength);
+        if g <= b {
+            radiance += (g - r) * smits::cyanReflectance(wavelength);
+            radiance += (b - g) * smits::blueReflectance(wavelength);
+        } else {
+            radiance += (b - r) * smits::cyanReflectance(wavelength);
+            radiance += (g - b) * smits::greenReflectance(wavelength);
+        }
+    } else if g <= r && g <= b {
+        radiance += g * smits::whiteReflectance(wavelength);
+        if r <= b {
+            radiance += (r - g) * smits::magentaReflectance(wavelength);
+            radiance += (b - r) * smits::blueReflectance(wavelength);
+        } else {
+            radiance += (b - g) * smits::magentaReflectance(wavelength);
+            radiance += (r - b) * smits::redReflectance(wavelength);
+        }
+    } else {
+        radiance += b * smits::whiteReflectance(wavelength);
+        if r <= g {
+            radiance += (r - b) * smits::yellowReflectance(wavelength);
+            radiance += (g - r) * smits::greenReflectance(wavelength);
+        } else {
+            radiance += (g - b) * smits::yellowReflectance(wavelength);
+            radiance += (r - g) * smits::redReflectance(wavelength);
+        }
+    }
+    return physics::Radiance(max(radiance, 0.0f));
 }
 
 fn dist(
