@@ -15,3 +15,8 @@ fn randFloat() -> f32 {
     stepRng();
     return f32(rng_state) / 4294967296.0;
 }
+
+fn randUInt() -> u32 {
+    stepRng();
+    return rng_state;
+}

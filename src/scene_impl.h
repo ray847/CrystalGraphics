@@ -4,8 +4,10 @@
 #include <CrystalSpatial/spatial.h>
 
 #include <cassert>
+#include <cstdint>
 #include <filesystem>
 #include <optional>
+#include <random>
 #include <ranges>
 #include <vector>
 
@@ -28,6 +30,12 @@ struct Primitive {
 };
 
 struct Scene::Impl {
+  static std::uint64_t GenerateTag() {
+    std::random_device random_device;
+    return (std::uint64_t{ random_device() } << 32u)
+        ^ std::uint64_t{ random_device() };
+  }
+
   struct Trans : public crystal::spatial::TRSQuatTrans {
     using crystal::spatial::TRSQuatTrans::operator();
     using CompleteTrans = crystal::spatial::AffineTrans<3, float>;
@@ -74,6 +82,7 @@ struct Scene::Impl {
 
   using SpaceDef = spatial::SpaceDef<Trans, Primitive>;
 
+  std::uint64_t tag_ = GenerateTag();
   VertexContainer vertices_;
   std::vector<size32_t> indices_;
   std::vector<Material> materials_;

@@ -8,7 +8,7 @@ import super::math::{
     PI,
     MAX,
   },
-  rng::{seedRng, randFloat},
+  rng::{seedRng, randFloat, randUInt},
   ray::Ray,
   geometric::{
     dirInv,

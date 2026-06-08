@@ -2,9 +2,9 @@ import package::compute::math;
 import package::compute::physics;
 import package::compute::trace;
 
-const SAMPLE_COUNT: u32 = 2;
+@id(2) override SAMPLE_COUNT: u32;
 
-fn render(ray: math::Ray) -> physics::SRGB {
+fn render(ray: math::Ray) -> physics::Luminance {
     var luminance = physics::Luminance();
     for (var i: u32; i < SAMPLE_COUNT; i++) {
         let wavelength_sample = physics::sampleWavelength();
@@ -14,5 +14,5 @@ fn render(ray: math::Ray) -> physics::SRGB {
             wavelength_sample.prob /
             f32(SAMPLE_COUNT);
     }
-    return physics::luminanceToSrgb(luminance);
+    return luminance;
 }

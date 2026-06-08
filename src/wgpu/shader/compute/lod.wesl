@@ -1,4 +1,4 @@
-const MAX_DEPTH = 12;
+@id(3) override MAX_DEPTH: i32;
 
 struct LOD {
     depth: i32,
@@ -14,5 +14,5 @@ fn decr(lod: LOD) -> LOD {
 }
 
 fn heuristic(lod: LOD) -> f32 {
-    return f32(MAX_DEPTH - lod.depth) / MAX_DEPTH;
+    return f32(MAX_DEPTH - lod.depth) / f32(MAX_DEPTH);
 }

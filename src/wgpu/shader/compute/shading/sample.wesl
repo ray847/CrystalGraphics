@@ -47,6 +47,10 @@ const MAX_TRANSPORT_SAMPLE_COUNT: u32 = 4u;
 const MAX_EMISSION_SAMPLE_COUNT: u32 = 1u;
 const MAX_DIFFUSE_COUNT: u32 = 1u;
 const MAX_ROUGH_COUNT: u32 = 1u;
+@id(5) override TRANSPORT_SAMPLE_COUNT: u32;
+@id(6) override EMISSION_SAMPLE_COUNT: u32;
+@id(7) override DIFFUSE_SAMPLE_COUNT: u32;
+@id(8) override ROUGH_SAMPLE_COUNT: u32;
 const MIN_SAMPLE_WEIGHT: f32 = 1e-6f;
 const EMISSION_HIT_EPSILON: f32 = 1e-3f;
 
@@ -152,10 +156,12 @@ fn normalReflectance(material: Material) -> f32 {
 
 fn counts(sample_heuristics: SampleHeuristics, curr_lod: lod::LOD) -> SampleCounts {
     let transport_available = u32(
-        lod::heuristic(curr_lod) * f32(MAX_TRANSPORT_SAMPLE_COUNT)
+        lod::heuristic(curr_lod)
+            * f32(min(TRANSPORT_SAMPLE_COUNT, MAX_TRANSPORT_SAMPLE_COUNT))
     );
     let emission_available = u32(
-        lod::heuristic(curr_lod) * f32(MAX_EMISSION_SAMPLE_COUNT)
+        lod::heuristic(curr_lod)
+            * f32(min(EMISSION_SAMPLE_COUNT, MAX_EMISSION_SAMPLE_COUNT))
     );
 
     var sample_counts = transportCounts(transport_available, sample_heuristics);
@@ -183,13 +189,17 @@ fn transportCounts(
 
     let sample_scale = f32(available_count) / heuristic_sum;
     var sample_counts = SampleCounts(
-        scaledCount(sample_heuristics.diffuse, sample_scale, MAX_DIFFUSE_COUNT),
+        scaledCount(
+            sample_heuristics.diffuse,
+            sample_scale,
+            min(DIFFUSE_SAMPLE_COUNT, MAX_DIFFUSE_COUNT)
+        ),
         scaledCount(sample_heuristics.specular_reflect, sample_scale, 1u),
         scaledCount(sample_heuristics.rough_reflect, sample_scale,
-            MAX_ROUGH_COUNT),
+            min(ROUGH_SAMPLE_COUNT, MAX_ROUGH_COUNT)),
         scaledCount(sample_heuristics.specular_transmit, sample_scale, 1u),
         scaledCount(sample_heuristics.rough_transmit, sample_scale,
-            MAX_ROUGH_COUNT),
+            min(ROUGH_SAMPLE_COUNT, MAX_ROUGH_COUNT)),
         0u
     );
 

@@ -18,8 +18,8 @@ struct ComputeBindGroupLayouts {
   /**
    * Compute BindGroup Layout.
    *
-   * 0. Target Texture
-   * 1. Camera
+   * 0. Target Texture, History Buffer
+   * 1. Uniform
    * 2. Scene Storage, Material Textures
    */
   std::array<::wgpu::BindGroupLayout, 3> layouts;
@@ -130,8 +130,9 @@ std::expected<ComputeBindGroupLayouts, Error> CreateComputeBindGroupLayouts(
 std::expected<ComputeBindGroups, Error> CreateComputeBindGroups(
     /* Group 0 */
     ::wgpu::TextureView& surface_texture_view,
+    ::wgpu::Buffer& history_buffer,
     /* Group 1 */
-    ::wgpu::Buffer& camera_uniform,
+    ::wgpu::Buffer& uniform,
     /* Group 2 */
     ::wgpu::Buffer& tlas_inst_storage,
     std::size_t insts_offset,

@@ -4,6 +4,7 @@
 #include <cmath>
 #include <cstdlib>
 #include <iostream>
+#include <numbers>
 
 int main() {
   auto init_res = crystal::graphics::EnvInit();
@@ -16,8 +17,8 @@ int main() {
   // auto scene =
   //     crystal::graphics::LoadScene("asset/FlightHelmet/glTF/FlightHelmet.gltf");
   // auto scene = crystal::graphics::LoadScene("asset/Sponza/glTF/Sponza.gltf");
-  auto scene = crystal::graphics::LoadScene("asset/CompareMetallic/glTF/"
-                                            "CompareMetallic.gltf");
+  auto scene = crystal::graphics::LoadScene("asset/CompareBaseColor/glTF/"
+                                            "CompareBaseColor.gltf");
   if (!scene) {
     std::cout << scene.error() << std::endl;
     return EXIT_FAILURE;
@@ -26,7 +27,7 @@ int main() {
   uint64_t counter = 0;
   auto st = std::chrono::high_resolution_clock::now();
   while (std::chrono::high_resolution_clock::now() - st
-         < std::chrono::seconds(10)) {
+         < std::chrono::seconds(30)) {
     auto poll_res = crystal::graphics::EnvPoll();
     if (!poll_res) [[unlikely]] {
       std::cerr << poll_res.error() << std::endl;
@@ -37,10 +38,10 @@ int main() {
                        std::chrono::high_resolution_clock::now() - st)
                        .count()
                 / 1000 / 5;
-    // angle = -std::numbers::pi / 2;
-    float dis = 5.0f;
+    angle = -std::numbers::pi / 2;
+    float dis = 1.0f;
     crystal::graphics::Camera camera{
-      .position = { dis * std::cos(angle), dis * std::sin(angle), 0.0f },
+      .position = { dis * std::cos(angle), dis * std::sin(angle), 1.0f },
       .direction = { -std::cos(angle), -std::sin(angle), 0 },
       .viewport = { 1.960, 1.080 }
     };

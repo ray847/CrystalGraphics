@@ -5,8 +5,11 @@
 #include <glfw3webgpu.h>
 #include <webgpu/webgpu.h>
 
-#include <expected>
+#include <cstddef>
 #include <cstdint>
+#include <expected>
+#include <glm/ext/vector_float2.hpp>
+#include <glm/ext/vector_float3.hpp>
 #include <webgpu/webgpu-raii.hpp>
 #include <webgpu/webgpu.hpp>
 
@@ -17,10 +20,23 @@
 
 namespace crystal::graphics::wgpu {
 
+struct UniformData {
+  alignas(16) glm::vec3 position;
+  alignas(16) glm::vec3 direction;
+  alignas(16) glm::vec2 viewport;
+  std::uint32_t _camera_padding[2] = {};
+  std::uint32_t iter_count;
+  std::uint32_t _padding1[3] = {};
+};
+static_assert(sizeof(UniformData) == 64);
+static_assert(alignof(UniformData) == 16);
+static_assert(offsetof(UniformData, iter_count) == 48);
+
 struct Resources {
   ::wgpu::raii::Texture surface_texture;
   ::wgpu::raii::Sampler surface_sampler;
-  ::wgpu::raii::Buffer camera_uniform;
+  ::wgpu::raii::Buffer history_buffer;
+  ::wgpu::raii::Buffer uniform;
   ::wgpu::raii::Buffer tlas_storage;
   std::size_t inst_offset;
   ::wgpu::raii::Buffer scene_storage;
@@ -51,9 +67,10 @@ std::expected<Resources, Error> CreateResources(
 std::expected<::wgpu::TextureView, Error> CreateSurfaceTextureView(
     ::wgpu::Texture& surface_texture);
 
-std::expected<void, Error> WriteCameraUniform(const Camera& camera,
-                                              Resources& resources,
-                                              ::wgpu::Queue& queue);
+std::expected<void, Error> WriteUniform(const Camera& camera,
+                                        std::uint32_t iter_count,
+                                        Resources& resources,
+                                        ::wgpu::Queue& queue);
 
 std::expected<SceneWriteResult, Error> WriteScene(
     const SceneData& scene_data,

@@ -4,6 +4,7 @@
 #include <glfw3webgpu.h>
 #include <webgpu/webgpu.h>
 
+#include <cstdint>
 #include <expected>
 #include <tuple>
 #include <webgpu/webgpu-raii.hpp>
@@ -12,6 +13,7 @@
 #include "CrystalGraphics/camera.h"
 #include "CrystalGraphics/error.h"
 #include "compute.h"
+#include "frame_history.h"
 #include "resource.h"
 #include "src/cache.h"
 #include "src/pathtracing/scene_data.h"
@@ -46,11 +48,12 @@ class Env {
   /* Resources */
   Resources resources_;
   struct SceneDataTagger {
-    static std::filesystem::path operator()(const SceneData& scene_data) {
-      return scene_data.file_path_;
+    static std::uint64_t operator()(const SceneData& scene_data) {
+      return scene_data.scene_tag_;
     }
   };
   CacheTag<SceneData, SceneDataTagger> scene_buffer_cache_tag_{};
+  FrameHistory frame_history_{};
   /* Pipelines */
   ComputeBindGroupLayouts compute_bindgroup_layouts_;
   ComputeBindGroups compute_bindgroups_;

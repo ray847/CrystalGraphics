@@ -9,6 +9,7 @@
 #include "CrystalGraphics/camera.h"
 #include "CrystalGraphics/error.h"
 #include "global.h"
+#include "resource.h"
 #include "webgpu/webgpu.hpp"
 
 namespace crystal::graphics::wgpu {
@@ -19,6 +20,13 @@ constexpr std::size_t kMinStorageBindingSize = 8;
 
 std::size_t StorageBindingSize(std::size_t size) {
   return std::max(size, kMinStorageBindingSize);
+}
+
+::wgpu::ConstantEntry PipelineConstant(const char* key, double value) {
+  ::wgpu::ConstantEntry entry{ ::wgpu::Default };
+  entry.key = ::wgpu::StringView{ key };
+  entry.value = value;
+  return entry;
 }
 
 }  // namespace
@@ -48,7 +56,7 @@ std::expected<ComputeBindGroup2, Error> CreateComputeBindGroup2(
 std::expected<ComputeBindGroupLayouts, Error> CreateComputeBindGroupLayouts(
     ::wgpu::Device& device) {
   /* Group 0 */
-  std::array<::wgpu::BindGroupLayoutEntry, 1> group0entries{
+  std::array<::wgpu::BindGroupLayoutEntry, 2> group0entries{
     [&] -> ::wgpu::BindGroupLayoutEntry {
       ::wgpu::BindGroupLayoutEntry surface_texture_entry{ ::wgpu::Default };
       surface_texture_entry.binding = 0;
@@ -60,6 +68,13 @@ std::expected<ComputeBindGroupLayouts, Error> CreateComputeBindGroupLayouts(
       surface_texture_entry.storageTexture.viewDimension =
           ::wgpu::TextureViewDimension::_2D;
       return surface_texture_entry;
+    }(),
+    [&] -> ::wgpu::BindGroupLayoutEntry {
+      ::wgpu::BindGroupLayoutEntry history_buffer_entry{ ::wgpu::Default };
+      history_buffer_entry.binding = 1;
+      history_buffer_entry.visibility = ::wgpu::ShaderStage::Compute;
+      history_buffer_entry.buffer.type = ::wgpu::BufferBindingType::Storage;
+      return history_buffer_entry;
     }(),
   };
   ::wgpu::BindGroupLayout group0 =
@@ -77,12 +92,12 @@ std::expected<ComputeBindGroupLayouts, Error> CreateComputeBindGroupLayouts(
   /* Group 1 */
   std::array<::wgpu::BindGroupLayoutEntry, 1> group1entries{
     [&] -> ::wgpu::BindGroupLayoutEntry {
-      ::wgpu::BindGroupLayoutEntry camera_entry{ ::wgpu::Default };
-      camera_entry.binding = 0;
-      camera_entry.visibility = ::wgpu::ShaderStage::Compute;
-      camera_entry.buffer.type = ::wgpu::BufferBindingType::Uniform;
-      camera_entry.buffer.minBindingSize = sizeof(Camera);
-      return camera_entry;
+      ::wgpu::BindGroupLayoutEntry uniform_entry{ ::wgpu::Default };
+      uniform_entry.binding = 0;
+      uniform_entry.visibility = ::wgpu::ShaderStage::Compute;
+      uniform_entry.buffer.type = ::wgpu::BufferBindingType::Uniform;
+      uniform_entry.buffer.minBindingSize = sizeof(UniformData);
+      return uniform_entry;
     }(),
   };
   ::wgpu::BindGroupLayout group1 =
@@ -173,8 +188,7 @@ std::expected<ComputeBindGroupLayouts, Error> CreateComputeBindGroupLayouts(
       texture_entry.visibility = ::wgpu::ShaderStage::Compute;
       texture_entry.texture.sampleType =
           ::wgpu::TextureSampleType::UnfilterableFloat;
-      texture_entry.texture.viewDimension =
-          ::wgpu::TextureViewDimension::_2D;
+      texture_entry.texture.viewDimension = ::wgpu::TextureViewDimension::_2D;
       texture_entry.texture.multisampled = false;
       return texture_entry;
     }(),
@@ -221,8 +235,9 @@ std::expected<ComputeBindGroupLayouts, Error> CreateComputeBindGroupLayouts(
 std::expected<ComputeBindGroups, Error> CreateComputeBindGroups(
     /* Group 0 */
     ::wgpu::TextureView& surface_texture_view,
+    ::wgpu::Buffer& history_buffer,
     /* Group 1 */
-    ::wgpu::Buffer& camera_uniform,
+    ::wgpu::Buffer& uniform,
     /* Group 2 */
     ::wgpu::Buffer& tlas_storage,
     std::size_t insts_offset,
@@ -239,12 +254,19 @@ std::expected<ComputeBindGroups, Error> CreateComputeBindGroups(
     ComputeBindGroupLayouts& layouts,
     ::wgpu::Device& device) {
   /* Group 0 */
-  std::array<::wgpu::BindGroupEntry, 1> group0entries{
+  std::array<::wgpu::BindGroupEntry, 2> group0entries{
     [&] -> ::wgpu::BindGroupEntry {
       ::wgpu::BindGroupEntry surface_texture{ ::wgpu::Default };
       surface_texture.binding = 0;
       surface_texture.textureView = surface_texture_view;
       return surface_texture;
+    }(),
+    [&] -> ::wgpu::BindGroupEntry {
+      ::wgpu::BindGroupEntry history{ ::wgpu::Default };
+      history.binding = 1;
+      history.buffer = history_buffer;
+      history.size = history_buffer.getSize();
+      return history;
     }(),
   };
   ::wgpu::BindGroup group0{
@@ -264,11 +286,11 @@ std::expected<ComputeBindGroups, Error> CreateComputeBindGroups(
   /* Group 1 */
   std::array<::wgpu::BindGroupEntry, 1> group1entries{
     [&] -> ::wgpu::BindGroupEntry {
-      ::wgpu::BindGroupEntry camera{ ::wgpu::Default };
-      camera.binding = 0;
-      camera.buffer = camera_uniform;
-      camera.size = camera_uniform.getSize();
-      return camera;
+      ::wgpu::BindGroupEntry uniform_entry{ ::wgpu::Default };
+      uniform_entry.binding = 0;
+      uniform_entry.buffer = uniform;
+      uniform_entry.size = uniform.getSize();
+      return uniform_entry;
     }(),
   };
   ::wgpu::BindGroup group1{
@@ -344,8 +366,7 @@ std::expected<void, Error> UpdateComputeBindGroup2(
   if (bindgroups.environment_texture_view)
     bindgroups.environment_texture_view.release();
   bindgroups[2] = group2->bindgroup;
-  bindgroups.material_texture_array_view =
-      group2->material_texture_array_view;
+  bindgroups.material_texture_array_view = group2->material_texture_array_view;
   bindgroups.environment_texture_view = group2->environment_texture_view;
   return {};
 }
@@ -379,11 +400,33 @@ std::expected<::wgpu::ComputePipeline, Error> CreateComputePipeline(
       }()) };
 
   /* Pipeline */
+  std::array<::wgpu::ConstantEntry, 9> constants{
+    PipelineConstant(global::kResolutionWidthOverrideId,
+                     static_cast<double>(global::kResolutionWidth)),
+    PipelineConstant(global::kResolutionHeightOverrideId,
+                     static_cast<double>(global::kResolutionHeight)),
+    PipelineConstant(global::kRenderSampleCountOverrideId,
+                     static_cast<double>(global::kRenderSampleCount)),
+    PipelineConstant(global::kLodMaxDepthOverrideId,
+                     static_cast<double>(global::kLodMaxDepth)),
+    PipelineConstant(global::kTraceMaxDepthOverrideId,
+                     static_cast<double>(global::kTraceMaxDepth)),
+    PipelineConstant(global::kMaxTransportSampleCountOverrideId,
+                     static_cast<double>(global::kMaxTransportSampleCount)),
+    PipelineConstant(global::kMaxEmissionSampleCountOverrideId,
+                     static_cast<double>(global::kMaxEmissionSampleCount)),
+    PipelineConstant(global::kMaxDiffuseSampleCountOverrideId,
+                     static_cast<double>(global::kMaxDiffuseSampleCount)),
+    PipelineConstant(global::kMaxRoughSampleCountOverrideId,
+                     static_cast<double>(global::kMaxRoughSampleCount)),
+  };
   ::wgpu::ComputePipeline pipeline{ device.createComputePipeline(
-      [&] -> ::wgpu::ComputePipelineDescriptor {
+      [&constants,
+       &comp_shader_module,
+       &pipeline_layout] -> ::wgpu::ComputePipelineDescriptor {
         ::wgpu::ComputePipelineDescriptor desc{ ::wgpu::Default };
-        desc.compute.constantCount = 0;
-        desc.compute.constants = nullptr;
+        desc.compute.constantCount = constants.size();
+        desc.compute.constants = constants.data();
         desc.compute.entryPoint = ::wgpu::StringView{ "main" };
         desc.compute.module = *comp_shader_module;
         desc.layout = *pipeline_layout;
@@ -419,8 +462,8 @@ std::expected<void, Error> EncodeComputePass(::wgpu::CommandEncoder& encoder,
       /* bindgroup */ bindgroups[2],
       /* dynamic offset count */ 0,
       /* dynamic offsets */ nullptr);
-  uint32_t width = global::resolution_width;
-  uint32_t height = global::resolution_height;
+  uint32_t width = global::kResolutionWidth;
+  uint32_t height = global::kResolutionHeight;
   uint32_t workgroup_size_x = 16;
   uint32_t workgroup_size_y = 16;
   uint32_t workgroup_count_x =
@@ -463,15 +506,14 @@ std::expected<ComputeBindGroup2, Error> CreateComputeBindGroup2(
         desc.arrayLayerCount = WGPU_ARRAY_LAYER_COUNT_UNDEFINED;
         desc.aspect = ::wgpu::TextureAspect::All;
         return desc;
-  }());
+      }());
   if (auto e = global::error_stack.Pop()) return std::unexpected(*e);
 
   ::wgpu::TextureView environment_texture_view =
       environment_texture.createView([] -> ::wgpu::TextureViewDescriptor {
         ::wgpu::TextureViewDescriptor desc{ ::wgpu::Default };
-        desc.label = ::wgpu::StringView{
-          "Crystal Graphics Environment Texture View"
-        };
+        desc.label =
+            ::wgpu::StringView{ "Crystal Graphics Environment Texture View" };
         desc.format = ::wgpu::TextureFormat::RGBA32Float;
         desc.dimension = ::wgpu::TextureViewDimension::_2D;
         desc.baseMipLevel = 0;
@@ -501,8 +543,7 @@ std::expected<ComputeBindGroup2, Error> CreateComputeBindGroup2(
       bvh.binding = 1;
       bvh.buffer = tlas_storage;
       bvh.offset = tlas_inst_offset;
-      bvh.size = StorageBindingSize(tlas_storage.getSize()
-                                    - tlas_inst_offset);
+      bvh.size = StorageBindingSize(tlas_storage.getSize() - tlas_inst_offset);
       return bvh;
     }(),
     /* BLAS Nodes */
@@ -584,8 +625,8 @@ std::expected<ComputeBindGroup2, Error> CreateComputeBindGroup2(
       alias.binding = 11;
       alias.buffer = blas_idx_vert_storage;
       alias.offset = alias_offset;
-      alias.size = StorageBindingSize(blas_idx_vert_storage.getSize()
-                                      - alias_offset);
+      alias.size =
+          StorageBindingSize(blas_idx_vert_storage.getSize() - alias_offset);
       return alias;
     }(),
   };

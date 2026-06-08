@@ -12,7 +12,7 @@ fn radiance(dir: vec3f, wavelength: physics::Wavelength) -> physics::Radiance {
 fn Texel(uv: vec2f) -> vec4f {
     let dims = textureDimensions(environment_texture);
     let wrapped_u = uv.x - floor(uv.x);
-    let clamped_v = clamp(uv.y, 0.0f, 0.999999f);
+    let clamped_v = clamp(1.0f - uv.y, 0.0f, 0.999999f);
     let x = min(dims.x - 1u, u32(wrapped_u * f32(dims.x)));
     let y = min(dims.y - 1u, u32(clamped_v * f32(dims.y)));
     return textureLoad(environment_texture, vec2i(i32(x), i32(y)), 0);

@@ -16,9 +16,11 @@ namespace crystal::graphics::wgpu {
 std::expected<void, Error> Env::View(const SceneData& scene_data,
                                      const Camera& camera) {
   /* Write Inputs */
-  /* Camera */
-  auto write_camera_res = WriteCameraUniform(camera, resources_, *queue_);
-  if (!write_camera_res) return std::unexpected(write_camera_res.error());
+  /* Uniform */
+  const std::uint32_t iter_count =
+      frame_history_.NextIteration(scene_data.scene_tag_, camera);
+  auto write_uniform_res = WriteUniform(camera, iter_count, resources_, *queue_);
+  if (!write_uniform_res) return std::unexpected(write_uniform_res.error());
   /* Scene */
   if (!scene_buffer_cache_tag_.Match(scene_data)) {
     auto write_scene_res = WriteScene(scene_data,

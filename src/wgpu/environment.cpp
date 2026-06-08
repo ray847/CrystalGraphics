@@ -49,7 +49,8 @@ std::expected<Env, Error> CreateEnv(GLFWwindow* window) {
   if (!compute_bindgroup_layouts)
     return std::unexpected(compute_bindgroup_layouts.error());
   auto compute_bindgroup = CreateComputeBindGroups(*surface_texture_view,
-                                                   *resources->camera_uniform,
+                                                   *resources->history_buffer,
+                                                   *resources->uniform,
                                                    *resources->tlas_storage,
                                                    resources->inst_offset,
                                                    *resources->scene_storage,

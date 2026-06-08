@@ -1,10 +1,11 @@
-#include <expected>
+#include "surface.h"
 
 #include <glfw3webgpu.h>
+
+#include <expected>
 #include <webgpu/webgpu.hpp>
 
 #include "global.h"
-#include "surface.h"
 
 namespace crystal::graphics::wgpu {
 
@@ -29,8 +30,8 @@ std::expected<::wgpu::SurfaceConfiguration, Error> ConfigSurface(
       [&] -> ::wgpu::SurfaceConfiguration {
     ::wgpu::SurfaceConfiguration config;
     config.nextInChain = nullptr;
-    config.width = global::resolution_width;
-    config.height = global::resolution_height;
+    config.width = global::kResolutionWidth;
+    config.height = global::kResolutionHeight;
     config.usage = WGPUTextureUsage_RenderAttachment;
     config.format = surface_capabilities.formats[0];
     config.viewFormatCount = 0;
@@ -45,7 +46,6 @@ std::expected<::wgpu::SurfaceConfiguration, Error> ConfigSurface(
   if (auto e = global::error_stack.Pop()) return std::unexpected(*e);
   return surface_config;
 }
-
 
 std::expected<::wgpu::TextureView, Error> NextTargetView(
     ::wgpu::Surface& surface) {

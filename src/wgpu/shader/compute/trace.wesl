@@ -6,6 +6,7 @@ import package::compute::structural;
 import package::compute::environment;
 
 const MAX_TRACE_DEPTH: u32 = 64u;
+@id(4) override TRACE_DEPTH: u32;
 
 struct Stack {
     /* Argument */
@@ -37,7 +38,9 @@ fn trace(ray: math::Ray, wavelength: physics::Wavelength) -> physics::Radiance {
                 continue;
             }
 
-            if lod::reachEnd(stk[top].lod) || u32(top) == MAX_TRACE_DEPTH - 1 {
+            let trace_depth = max(1u, min(TRACE_DEPTH, MAX_TRACE_DEPTH));
+            if lod::reachEnd(stk[top].lod)
+                || u32(top) >= trace_depth - 1u {
                 /* Return */
                 ret = physics::Radiance();
                 stk[top] = Stack(); // clear stack frame

@@ -23,6 +23,7 @@ namespace crystal::graphics {
 class SceneData {
  public:
   /* Variables */
+  const std::uint64_t scene_tag_;
   const std::filesystem::path file_path_;
   const std::vector<Vertex>& vertices_;
   const std::vector<Material>& materials_;
@@ -35,6 +36,7 @@ class SceneData {
 
   /* Constructor */
   SceneData(const Scene& scene) :
+      scene_tag_(scene.impl_->tag_),
       file_path_(scene.FilePath()),
       vertices_(scene.impl_->vertices_),
       materials_(scene.impl_->materials_),

@@ -42,6 +42,7 @@ constexpr uint32_t kDefaultMaterialTextureSize = 1;
 constexpr uint32_t kDefaultMaterialTextureLayers = 1;
 constexpr uint32_t kDefaultEnvironmentTextureSize = 1;
 constexpr std::size_t kMinStorageBindingSize = 8;
+constexpr std::size_t kHistoryPixelSize = 16;
 
 struct UploadTexture {
   uint32_t width = 1;
@@ -113,6 +114,19 @@ std::expected<Resources, Error> CreateResources(
         return desc;
       }());
   if (auto e = global::error_stack.Pop()) return std::unexpected(*e);
+  /* History Buffer */
+  const std::uint64_t history_buffer_size =
+      static_cast<std::uint64_t>(surface_config.width) * surface_config.height
+      * kHistoryPixelSize;
+  ::wgpu::Buffer history_buffer =
+      device.createBuffer([&] -> ::wgpu::BufferDescriptor {
+        ::wgpu::BufferDescriptor desc{ ::wgpu::Default };
+        desc.label = ::wgpu::StringView{ "Crystal Graphics History Buffer" };
+        desc.size = history_buffer_size;
+        desc.usage = ::wgpu::BufferUsage::Storage;
+        return desc;
+      }());
+  if (auto e = global::error_stack.Pop()) return std::unexpected(*e);
   /* Surface Sampler */
   ::wgpu::Sampler surface_sampler =
       device.createSampler([] -> ::wgpu::SamplerDescriptor {
@@ -128,11 +142,11 @@ std::expected<Resources, Error> CreateResources(
         return desc;
       }());
   if (auto e = global::error_stack.Pop()) return std::unexpected(*e);
-  /* Camera Buffer */
-  ::wgpu::Buffer camera_uniform =
+  /* Uniform Buffer */
+  ::wgpu::Buffer uniform =
       device.createBuffer([] -> ::wgpu::BufferDescriptor {
         ::wgpu::BufferDescriptor desc{ ::wgpu::Default };
-        desc.size = sizeof(Camera);
+        desc.size = sizeof(UniformData);
         desc.usage =
             ::wgpu::BufferUsage::CopyDst | ::wgpu::BufferUsage::Uniform;
         return desc;
@@ -168,7 +182,8 @@ std::expected<Resources, Error> CreateResources(
   return Resources{
     .surface_texture = std::move(surface_texture),
     .surface_sampler = std::move(surface_sampler),
-    .camera_uniform = std::move(camera_uniform),
+    .history_buffer = std::move(history_buffer),
+    .uniform = std::move(uniform),
     .tlas_storage = std::move(*tlas_storage),
     .inst_offset = min_offset_alignment,
     .scene_storage = std::move(*blas_storage),
@@ -212,13 +227,20 @@ std::expected<::wgpu::TextureView, Error> CreateSurfaceTextureView(
   return surface_texture_view;
 }
 
-std::expected<void, Error> WriteCameraUniform(const Camera& camera,
-                                              Resources& resources,
-                                              ::wgpu::Queue& queue) {
-  queue.writeBuffer(*resources.camera_uniform,
+std::expected<void, Error> WriteUniform(const Camera& camera,
+                                        std::uint32_t iter_count,
+                                        Resources& resources,
+                                        ::wgpu::Queue& queue) {
+  UniformData uniform{
+    .position = camera.position,
+    .direction = camera.direction,
+    .viewport = camera.viewport,
+    .iter_count = iter_count,
+  };
+  queue.writeBuffer(*resources.uniform,
                     0,
-                    static_cast<const void*>(&camera),
-                    sizeof(Camera));
+                    static_cast<const void*>(&uniform),
+                    sizeof(UniformData));
   if (auto e = global::error_stack.Pop()) return std::unexpected(*e);
   return {};
 }
