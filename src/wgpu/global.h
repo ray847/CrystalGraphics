@@ -14,10 +14,10 @@ constexpr std::uint32_t kResolutionHeight = 720;
 constexpr std::uint32_t kRenderSampleCount = 1;
 constexpr std::uint32_t kLodMaxDepth = 8;
 constexpr std::uint32_t kTraceMaxDepth = 64;
-constexpr std::uint32_t kMaxTransportSampleCount = 4;
-constexpr std::uint32_t kMaxEmissionSampleCount = 2;
-constexpr std::uint32_t kMaxDiffuseSampleCount = 2;
-constexpr std::uint32_t kMaxRoughSampleCount = 2;
+constexpr std::uint32_t kMaxTransportSampleCount = 3;
+constexpr std::uint32_t kMaxEmissionSampleCount = 1;
+constexpr std::uint32_t kMaxDiffuseSampleCount = 1;
+constexpr std::uint32_t kMaxRoughSampleCount = 1;
 
 constexpr char kResolutionWidthOverrideId[] = "0";
 constexpr char kResolutionHeightOverrideId[] = "1";

@@ -1,7 +1,7 @@
 import package::compute::math;
 import package::compute::structural;
 import package::compute::shading::material::{Material, IOR};
-import super::super::util::{orientedNormal, relIor};
+import super::super::util::{fresnelReflectance, orientedNormal, relIor};
 
 const VNDF_EPSILON: f32 = 1e-6f;
 
@@ -15,6 +15,7 @@ fn dist(
     if dot(next_dir, macro_norm) >= 0.0f {
         return 0.0f;
     }
+    let next_projection = max(dot(-next_dir, macro_norm), 0.0f);
 
     let macro_relative_ior = relIor(macro_norm, curr_dir, material);
     let macro_relative_ior_value = relativeIor(macro_relative_ior);
@@ -24,20 +25,23 @@ fn dist(
         return 0.0f;
     }
 
+    let raw_micro_norm = normalize(micro_norm_unnormalized);
     let micro_norm = orientedNormal(
         curr_dir,
-        normalize(micro_norm_unnormalized)
+        raw_micro_norm
     );
-    let relative_ior = relIor(micro_norm, curr_dir, material);
+    let relative_ior = relIor(raw_micro_norm, curr_dir, material);
     let transmission_ior = transmissionIor(relative_ior);
-    return transmitDist(
+    return (1.0f - fresnelReflectance(curr_dir, micro_norm, relative_ior))
+        * transmitDist(
         curr_dir,
         micro_norm,
         macro_norm,
         next_dir,
         transmission_ior,
         material
-    );
+    )
+        * next_projection;
 }
 
 fn relativeIor(ior: IOR) -> f32 {

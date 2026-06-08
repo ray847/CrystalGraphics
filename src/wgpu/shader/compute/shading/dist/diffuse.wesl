@@ -10,8 +10,6 @@ fn dist(
     material: Material
 ) -> f32 {
     let macro_norm = orientedNormal(curr_dir, surface_pos.shading_norm);
-    if dot(next_dir, macro_norm) <= 0.0f {
-        return 0.0f;
-    }
-    return 1.0f / math::PI;
+    let next_projection = max(dot(next_dir, macro_norm), 0.0f);
+    return material.diffuse_reflectance * next_projection / math::PI;
 }

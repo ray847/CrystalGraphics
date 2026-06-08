@@ -30,7 +30,16 @@ fn decode(
     let metallic: f32 = metallic(packed_material, uvs);
     let transmission: f32 = transmission(packed_material, uvs);
     let raw_ior: f32 = packed_material.ior;
-    let ior: IOR = materialIor(raw_ior, reflectance, metallic);
+    let real_ior: f32 = select(
+        raw_ior,
+        dispersedIor(raw_ior, packed_material.dispersion, wavelength),
+        metallic == 0 && transmission > 0
+    );
+    let ior: IOR = materialIor(
+        real_ior,
+        reflectance,
+        metallic,
+    );
     let is_transmissive = metallic == 0.0f && transmission > 0.0f;
     let raw_emission: vec3f = emission(packed_material, uvs);
     return Material(
@@ -57,10 +66,33 @@ struct Material {
     emission: f32,
 };
 
-fn materialIor(real_ior: f32, reflectance: f32, metallic: f32) -> IOR {
+fn materialIor(
+    real_ior: f32,
+    reflectance: f32,
+    metallic: f32,
+) -> IOR {
     return IOR(
         real_ior,
         metallic * imaginaryIorFromReflectance(real_ior, reflectance)
+    );
+}
+
+fn dispersedIor(
+    nd: f32,
+    dispersion: f32,
+    wavelength: physics::Wavelength
+) -> f32 {
+    if dispersion <= 0.0f {
+        return nd;
+    }
+
+    // glTF stores dispersion = 20 / Vd, so 1/Vd = dispersion / 20.
+    let inv_abbe = dispersion / 20.0f;
+
+    return max(
+        nd + (nd - 1.0f) * inv_abbe *
+             (523655.0f / (wavelength * wavelength) - 1.5168f),
+        1.0f
     );
 }
 

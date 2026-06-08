@@ -1,7 +1,7 @@
 import package::compute::math;
 import package::compute::structural;
 import package::compute::shading::material::Material;
-import super::super::util::orientedNormal;
+import super::super::util::{fresnelReflectance, orientedNormal, relIor};
 
 const VNDF_EPSILON: f32 = 1e-6f;
 
@@ -12,7 +12,8 @@ fn dist(
     material: Material
 ) -> f32 {
     let macro_norm = orientedNormal(curr_dir, surface_pos.shading_norm);
-    if dot(next_dir, macro_norm) <= 0.0f {
+    let next_projection = max(dot(next_dir, macro_norm), 0.0f);
+    if next_projection <= 0.0f {
         return 0.0f;
     }
 
@@ -21,11 +22,15 @@ fn dist(
         return 0.0f;
     }
 
+    let raw_micro_norm = normalize(micro_norm_unnormalized);
     let micro_norm = orientedNormal(
         curr_dir,
-        normalize(micro_norm_unnormalized)
+        raw_micro_norm
     );
-    return reflectDist(curr_dir, micro_norm, macro_norm, next_dir, material);
+    let relative_ior = relIor(raw_micro_norm, curr_dir, material);
+    return fresnelReflectance(curr_dir, micro_norm, relative_ior)
+        * reflectDist(curr_dir, micro_norm, macro_norm, next_dir, material)
+        * next_projection;
 }
 
 fn reflectDist(

@@ -26,19 +26,15 @@ const FRESNEL_EPSILON: f32 = 1e-6f;
 fn fresnelReflectance(
     curr_dir: vec3f,
     normal: vec3f,
-    material_ior: IOR
+    relative_ior: IOR
 ) -> f32 {
-    let outside = dot(curr_dir, normal) < 0.0f;
-    let facing_normal = select(-normal, normal, outside);
-    let incident_cosine = clamp(dot(-curr_dir, facing_normal), 0.0f, 1.0f);
+    let incident_cosine = clamp(dot(-curr_dir, normal), 0.0f, 1.0f);
 
-    if material_ior.im > FRESNEL_EPSILON {
-        return complexFresnelReflectance(incident_cosine, material_ior);
+    if abs(relative_ior.im) > FRESNEL_EPSILON {
+        return complexFresnelReflectance(incident_cosine, relative_ior);
     }
 
-    let incident_ior = select(material_ior.re, 1.0f, outside);
-    let transmitted_ior = select(1.0f, material_ior.re, outside);
-    let ior_ratio = incident_ior / transmitted_ior;
+    let ior_ratio = relative_ior.re;
     let transmitted_sine_squared = ior_ratio * ior_ratio * max(
         0.0f,
         1.0f - incident_cosine * incident_cosine
@@ -50,11 +46,11 @@ fn fresnelReflectance(
 
     let transmitted_cosine = sqrt(max(0.0f, 1.0f - transmitted_sine_squared));
     let perpendicular_reflectance =
-        (incident_ior * incident_cosine - transmitted_ior * transmitted_cosine)
-        / (incident_ior * incident_cosine + transmitted_ior * transmitted_cosine);
+        (ior_ratio * incident_cosine - transmitted_cosine)
+        / (ior_ratio * incident_cosine + transmitted_cosine);
     let parallel_reflectance =
-        (transmitted_ior * incident_cosine - incident_ior * transmitted_cosine)
-        / (transmitted_ior * incident_cosine + incident_ior * transmitted_cosine);
+        (incident_cosine - ior_ratio * transmitted_cosine)
+        / (incident_cosine + ior_ratio * transmitted_cosine);
     return clamp(
         0.5f * (perpendicular_reflectance * perpendicular_reflectance
             + parallel_reflectance * parallel_reflectance),
