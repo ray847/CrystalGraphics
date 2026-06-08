@@ -5,7 +5,7 @@ import package::compute::shading;
 import package::compute::structural;
 import package::compute::environment;
 
-const MAX_TRACE_DEPTH: u32 = 32u;
+const MAX_TRACE_DEPTH: u32 = 64u;
 
 struct Stack {
     /* Argument */
@@ -92,15 +92,17 @@ fn solveEmission(
     for (var i: u32; i < (*shading_pass_context).samples.emission_count; i++) {
         let emission_sample = \
             (*shading_pass_context).samples.emission_samples[i];
-        let hit_info = structural::rayHit(
-            shading::spawnSurfaceRay(
-                surface_pos,
-                emission_sample.dir
-            )
+        let sampled_light_pos = surface_pos.pos
+            + emission_sample.dir * emission_sample.expected_dist;
+        let shadow_ray = shading::spawnSurfaceRay(
+            surface_pos,
+            emission_sample.dir
         );
+        let expected_dist = distance(shadow_ray.pos, sampled_light_pos);
+        let hit_info = structural::rayHit(shadow_ray);
         if hit_info.travel_info.hit &&
             hit_info.travel_info.dist <
-            (emission_sample.expected_dist - shading::EMISSION_HIT_EPSILON) {
+            (expected_dist - shading::EMISSION_HIT_EPSILON) {
             (*shading_pass_context).samples.emission_samples[i].radiance = \
                 physics::Radiance();
         }

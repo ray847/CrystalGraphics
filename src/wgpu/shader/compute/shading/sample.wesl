@@ -43,10 +43,10 @@ import super::{
   util::{fresnelReflectance, orientedNormal, relIor},
 };
 
-const MAX_TRANSPORT_SAMPLE_COUNT: u32 = 2u;
-const MAX_EMISSION_SAMPLE_COUNT: u32 = 2u;
-const MAX_DIFFUSE_COUNT: u32 = 2u;
-const MAX_ROUGH_COUNT: u32 = 2u;
+const MAX_TRANSPORT_SAMPLE_COUNT: u32 = 4u;
+const MAX_EMISSION_SAMPLE_COUNT: u32 = 1u;
+const MAX_DIFFUSE_COUNT: u32 = 1u;
+const MAX_ROUGH_COUNT: u32 = 1u;
 const MIN_SAMPLE_WEIGHT: f32 = 1e-6f;
 const EMISSION_HIT_EPSILON: f32 = 1e-3f;
 

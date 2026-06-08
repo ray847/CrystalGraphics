@@ -98,10 +98,17 @@ std::expected<Env, Error> CreateEnv(GLFWwindow* window) {
               std::move(*queue) };
 }
 
-std::expected<void, Error> Env::Sync() {
+std::expected<void, Error> Env::Poll() {
   if (!instance_)
     return std::unexpected(Error{ "WebGPU environment already terminated." });
   instance_->processEvents();
+  if (auto error = global::error_stack.Pop()) return std::unexpected(*error);
+  return {};
+}
+
+std::expected<void, Error> Env::Present() {
+  if (!instance_)
+    return std::unexpected(Error{ "WebGPU environment already terminated." });
   if (surface_) surface_->present();
   if (auto error = global::error_stack.Pop()) return std::unexpected(*error);
   return {};

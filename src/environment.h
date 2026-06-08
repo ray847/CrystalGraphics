@@ -22,7 +22,8 @@ class Env {
   ~Env() {
     std::ignore = Term();
   }
-  std::expected<void, Error> Sync();
+  std::expected<void, Error> Poll();
+  std::expected<void, Error> Present();
   std::expected<void, Error> Term();
 
   std::expected<void, Error> View(const Scene& scene, const Camera& camera);

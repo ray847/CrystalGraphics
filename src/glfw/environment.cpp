@@ -25,7 +25,7 @@ std::expected<Env, Error> CreateEnv() {
   return Env{ window };
 }
 
-std::expected<void, Error> Env::Sync() {
+std::expected<void, Error> Env::Poll() {
   if (!window_)
     return std::unexpected(Error{ "GLFW environment already terminated." });
   glfwPollEvents();

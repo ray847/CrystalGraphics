@@ -21,9 +21,14 @@ std::expected<void, Error> EnvTerm() {
   global::env = nullptr;
   return {};
 }
-std::expected<void, Error> EnvSync() {
-  auto sync_res = global::env->Sync();
-  if (!sync_res) return std::unexpected(sync_res.error());
+std::expected<void, Error> EnvPoll() {
+  auto poll_res = global::env->Poll();
+  if (!poll_res) return std::unexpected(poll_res.error());
+  return {};
+}
+std::expected<void, Error> EnvPresent() {
+  auto present_res = global::env->Present();
+  if (!present_res) return std::unexpected(present_res.error());
   return {};
 }
 bool EnvStatus() {
@@ -39,11 +44,17 @@ std::expected<Env, Error> CreateEnv() {
   return Env{ std::move(*glfw_env), std::move(*wgpu_env) };
 }
 
-std::expected<void, Error> Env::Sync() {
-  auto sync_wgpu_res = wgpu_env_.Sync();
-  if (!sync_wgpu_res) return std::unexpected(sync_wgpu_res.error());
-  auto sync_glfw_res = glfw_env_.Sync();
-  if (!sync_glfw_res) return std::unexpected(sync_glfw_res.error());
+std::expected<void, Error> Env::Poll() {
+  auto poll_wgpu_res = wgpu_env_.Poll();
+  if (!poll_wgpu_res) return std::unexpected(poll_wgpu_res.error());
+  auto poll_glfw_res = glfw_env_.Poll();
+  if (!poll_glfw_res) return std::unexpected(poll_glfw_res.error());
+  return {};
+}
+
+std::expected<void, Error> Env::Present() {
+  auto present_res = wgpu_env_.Present();
+  if (!present_res) return std::unexpected(present_res.error());
   return {};
 }
 

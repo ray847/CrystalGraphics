@@ -2,7 +2,7 @@ import package::compute::math;
 import package::compute::physics;
 import package::compute::trace;
 
-const SAMPLE_COUNT: u32 = 8;
+const SAMPLE_COUNT: u32 = 2;
 
 fn render(ray: math::Ray) -> physics::SRGB {
     var luminance = physics::Luminance();

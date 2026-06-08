@@ -29,7 +29,8 @@ class Env {
     std::ignore = Term();
   }
   /* Functions */
-  std::expected<void, Error> Sync();
+  std::expected<void, Error> Poll();
+  std::expected<void, Error> Present();
   std::expected<void, Error> Term();
   operator bool() const;
 
