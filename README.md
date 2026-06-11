@@ -9,6 +9,31 @@ A "real-time" _spectural_ _pathtracing_ rendering engine written with `C++23` & 
 
 ## QuickStart
 
+### Standalone Tool
+
+```shell
+$ ./main
+
+CrystalGraphics Standalone Example
+This example will render a glTF file stationary for 5 seconds then start rotating.
+Usage: ./main path/to/your/glTF/file
+  (-h ; prints this message)
+  (-t number of seconds to run;           defaults to 10)
+  (-d camera distance to origin;          defaults to 1.0)
+  (-o (x, y, z) camera rotation origin;   defaults to (0.0, 0.0, 0.0))
+  (--window-width width;                  defaults to 1920)
+  (--window-height height;                defaults to 1080)
+  (--render-width width;                  defaults to 1280)
+  (--render-height height;                defaults to 720)
+  (--sample-count count;                  defaults to 1)
+  (--trace-depth depth;                   defaults to 2)
+  (--max-transport-samples count;         defaults to 3)
+  (--max-diffuse-samples count;           defaults to 1)
+  (--max-rough-samples count;             defaults to 1)
+  (--max-emission-samples count;          defaults to 1)
+```
+
+### Library Usage
 ```cpp
 #include <cstdlib>
 
@@ -116,4 +141,8 @@ target_link_libraries(YourTarget
 ## Technical Document
 
 Please refer to [the full document](doc/doc.pdf).
+
 The document covers:
+* Light Transport Physics
+* Light Transport Modeling
+* Implementation Details & Decisions
