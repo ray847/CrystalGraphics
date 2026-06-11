@@ -10,6 +10,7 @@
 #include <webgpu/webgpu-raii.hpp>
 #include <webgpu/webgpu.hpp>
 
+#include "CrystalGraphics/environment.h"
 #include "CrystalGraphics/error.h"
 
 namespace crystal::graphics::wgpu {
@@ -167,11 +168,15 @@ std::expected<void, Error> UpdateComputeBindGroup2(
     ::wgpu::Device& device);
 
 std::expected<::wgpu::ComputePipeline, Error> CreateComputePipeline(
-    ComputeBindGroupLayouts& bindgroup_layout, ::wgpu::Device& device);
+    ComputeBindGroupLayouts& bindgroup_layout,
+    const PathTraceConf& conf,
+    ::wgpu::Device& device);
 
 std::expected<void, Error> EncodeComputePass(::wgpu::CommandEncoder& encoder,
                                              ::wgpu::ComputePipeline& pipeline,
-                                             ComputeBindGroups& bindgroup);
+                                             ComputeBindGroups& bindgroup,
+                                             std::uint32_t render_width,
+                                             std::uint32_t render_height);
 
 }  // namespace crystal::graphics::wgpu
 

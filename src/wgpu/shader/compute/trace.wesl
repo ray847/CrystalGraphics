@@ -5,7 +5,7 @@ import package::compute::shading;
 import package::compute::structural;
 import package::compute::environment;
 
-const MAX_TRACE_DEPTH: u32 = 64u;
+const TRACE_STACK_SIZE: u32 = 64u;
 @id(4) override TRACE_DEPTH: u32;
 
 struct Stack {
@@ -21,7 +21,7 @@ struct Stack {
 
 fn trace(ray: math::Ray, wavelength: physics::Wavelength) -> physics::Radiance {
     var ret: physics::Radiance;
-    var stk = array<Stack, MAX_TRACE_DEPTH>(); // zero initialized
+    var stk = array<Stack, TRACE_STACK_SIZE>(); // zero initialized
     var top: i32 = 0;
     /* Write first argument. */
     stk[top].ray = ray;
@@ -38,7 +38,7 @@ fn trace(ray: math::Ray, wavelength: physics::Wavelength) -> physics::Radiance {
                 continue;
             }
 
-            let trace_depth = max(1u, min(TRACE_DEPTH, MAX_TRACE_DEPTH));
+            let trace_depth = max(1u, min(TRACE_DEPTH, TRACE_STACK_SIZE));
             if lod::reachEnd(stk[top].lod)
                 || u32(top) >= trace_depth - 1u {
                 /* Return */

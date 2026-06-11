@@ -372,7 +372,9 @@ std::expected<void, Error> UpdateComputeBindGroup2(
 }
 
 std::expected<::wgpu::ComputePipeline, Error> CreateComputePipeline(
-    ComputeBindGroupLayouts& bindgroup_layouts, ::wgpu::Device& device) {
+    ComputeBindGroupLayouts& bindgroup_layouts,
+    const PathTraceConf& conf,
+    ::wgpu::Device& device) {
   /* Compute Shader */
   ::wgpu::ShaderSourceWGSL comp_src_desc{ ::wgpu::Default };
   constexpr char comp_src[] = {
@@ -402,23 +404,23 @@ std::expected<::wgpu::ComputePipeline, Error> CreateComputePipeline(
   /* Pipeline */
   std::array<::wgpu::ConstantEntry, 9> constants{
     PipelineConstant(global::kResolutionWidthOverrideId,
-                     static_cast<double>(global::kResolutionWidth)),
+                     static_cast<double>(conf.render_width)),
     PipelineConstant(global::kResolutionHeightOverrideId,
-                     static_cast<double>(global::kResolutionHeight)),
+                     static_cast<double>(conf.render_height)),
     PipelineConstant(global::kRenderSampleCountOverrideId,
-                     static_cast<double>(global::kRenderSampleCount)),
+                     static_cast<double>(conf.sample_count)),
     PipelineConstant(global::kLodMaxDepthOverrideId,
-                     static_cast<double>(global::kLodMaxDepth)),
-    PipelineConstant(global::kTraceMaxDepthOverrideId,
-                     static_cast<double>(global::kTraceMaxDepth)),
+                     static_cast<double>(conf.trace_depth)),
+    PipelineConstant(global::kTraceDepthOverrideId,
+                     static_cast<double>(conf.trace_depth)),
     PipelineConstant(global::kMaxTransportSampleCountOverrideId,
-                     static_cast<double>(global::kMaxTransportSampleCount)),
+                     static_cast<double>(conf.max_transport_sample_count)),
     PipelineConstant(global::kMaxEmissionSampleCountOverrideId,
-                     static_cast<double>(global::kMaxEmissionSampleCount)),
+                     static_cast<double>(conf.max_emission_sample_count)),
     PipelineConstant(global::kMaxDiffuseSampleCountOverrideId,
-                     static_cast<double>(global::kMaxDiffuseSampleCount)),
+                     static_cast<double>(conf.max_diffuse_sample_count)),
     PipelineConstant(global::kMaxRoughSampleCountOverrideId,
-                     static_cast<double>(global::kMaxRoughSampleCount)),
+                     static_cast<double>(conf.max_rough_sample_count)),
   };
   ::wgpu::ComputePipeline pipeline{ device.createComputePipeline(
       [&constants,
@@ -437,7 +439,9 @@ std::expected<::wgpu::ComputePipeline, Error> CreateComputePipeline(
 
 std::expected<void, Error> EncodeComputePass(::wgpu::CommandEncoder& encoder,
                                              ::wgpu::ComputePipeline& pipeline,
-                                             ComputeBindGroups& bindgroups) {
+                                             ComputeBindGroups& bindgroups,
+                                             std::uint32_t render_width,
+                                             std::uint32_t render_height) {
   ::wgpu::raii::ComputePassEncoder compute_pass_encoder{
     encoder.beginComputePass([] -> ::wgpu::ComputePassDescriptor {
       ::wgpu::ComputePassDescriptor desc{ ::wgpu::Default };
@@ -462,14 +466,12 @@ std::expected<void, Error> EncodeComputePass(::wgpu::CommandEncoder& encoder,
       /* bindgroup */ bindgroups[2],
       /* dynamic offset count */ 0,
       /* dynamic offsets */ nullptr);
-  uint32_t width = global::kResolutionWidth;
-  uint32_t height = global::kResolutionHeight;
   uint32_t workgroup_size_x = 16;
   uint32_t workgroup_size_y = 16;
   uint32_t workgroup_count_x =
-      std::ceil(static_cast<double>(width) / workgroup_size_x);
+      std::ceil(static_cast<double>(render_width) / workgroup_size_x);
   uint32_t workgroup_count_y =
-      std::ceil(static_cast<double>(height) / workgroup_size_y);
+      std::ceil(static_cast<double>(render_height) / workgroup_size_y);
   compute_pass_encoder->dispatchWorkgroups(
       workgroup_count_x, workgroup_count_y, 1);
   compute_pass_encoder->end();

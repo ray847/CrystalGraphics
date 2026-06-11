@@ -9,8 +9,8 @@
 
 namespace crystal::graphics {
 
-std::expected<void, Error> EnvInit() {
-  auto env = CreateEnv();
+std::expected<void, Error> EnvInit(PathTraceConf conf) {
+  auto env = CreateEnv(conf);
   if (!env) return std::unexpected(env.error());
   global::env = std::make_unique<Env>(std::move(*env));
   return {};
@@ -36,10 +36,10 @@ bool EnvStatus() {
   return static_cast<bool>(global::env);
 }
 
-std::expected<Env, Error> CreateEnv() {
-  auto&& glfw_env = glfw::CreateEnv();
+std::expected<Env, Error> CreateEnv(PathTraceConf conf) {
+  auto&& glfw_env = glfw::CreateEnv(conf.window_width, conf.window_height);
   if (!glfw_env) return std::unexpected(glfw_env.error());
-  auto&& wgpu_env = wgpu::CreateEnv(glfw_env->Window());
+  auto&& wgpu_env = wgpu::CreateEnv(glfw_env->Window(), conf);
   if (!wgpu_env) return std::unexpected(wgpu_env.error());
   return Env{ std::move(*glfw_env), std::move(*wgpu_env) };
 }

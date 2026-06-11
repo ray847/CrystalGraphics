@@ -11,6 +11,7 @@
 #include <webgpu/webgpu.hpp>
 
 #include "CrystalGraphics/camera.h"
+#include "CrystalGraphics/environment.h"
 #include "CrystalGraphics/error.h"
 #include "compute.h"
 #include "frame_history.h"
@@ -46,6 +47,7 @@ class Env {
   ::wgpu::raii::Device device_;
   ::wgpu::raii::Surface surface_;
   /* Resources */
+  PathTraceConf conf_;
   Resources resources_;
   struct SceneDataTagger {
     static std::uint64_t operator()(const SceneData& scene_data) {
@@ -67,6 +69,7 @@ class Env {
       ::wgpu::Limits&& limits,
       ::wgpu::Device&& device,
       ::wgpu::Surface&& surface,
+      PathTraceConf conf,
       Resources&& resources,
       ComputeBindGroupLayouts&& compute_bindgroup_layouts,
       ComputeBindGroups&& compute_bindgroups,
@@ -78,6 +81,7 @@ class Env {
       limits_(std::move(limits)),
       device_(std::move(device)),
       surface_(std::move(surface)),
+      conf_(conf),
       resources_(std::move(resources)),
       compute_bindgroup_layouts_(std::move(compute_bindgroup_layouts)),
       compute_bindgroups_(std::move(compute_bindgroups)),
@@ -87,12 +91,13 @@ class Env {
       queue_(std::move(queue)) {
   }
   /* Builder Function */
-  friend std::expected<Env, Error> CreateEnv(GLFWwindow* window);
+  friend std::expected<Env, Error> CreateEnv(GLFWwindow* window,
+                                             PathTraceConf conf);
   friend std::expected<void, Error> View();
 };
 
 /* Builder Function */
-std::expected<Env, Error> CreateEnv(GLFWwindow* window);
+std::expected<Env, Error> CreateEnv(GLFWwindow* window, PathTraceConf conf);
 
 }  // namespace crystal::graphics::wgpu
 

@@ -60,7 +60,8 @@ struct SceneWriteResult {
 };
 
 std::expected<Resources, Error> CreateResources(
-    const ::wgpu::SurfaceConfiguration& surface_config,
+    std::uint32_t render_width,
+    std::uint32_t render_height,
     std::size_t min_offset_alignment,
     ::wgpu::Device& device);
 

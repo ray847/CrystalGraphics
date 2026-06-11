@@ -96,14 +96,15 @@ std::size_t StorageBindingSize(std::size_t size) {
 }  // namespace
 
 std::expected<Resources, Error> CreateResources(
-    const ::wgpu::SurfaceConfiguration& surface_config,
+    std::uint32_t render_width,
+    std::uint32_t render_height,
     std::size_t min_offset_alignment,
     ::wgpu::Device& device) {
   /* Surface Texture */
   ::wgpu::Texture surface_texture =
       device.createTexture([&] -> ::wgpu::TextureDescriptor {
         ::wgpu::TextureDescriptor desc{ ::wgpu::Default };
-        desc.size = { surface_config.width, surface_config.height, 1 };
+        desc.size = { render_width, render_height, 1 };
         desc.label = ::wgpu::StringView{ "Crystal Graphics Surface Texture" };
         desc.mipLevelCount = 1;
         desc.sampleCount = 1;
@@ -116,7 +117,7 @@ std::expected<Resources, Error> CreateResources(
   if (auto e = global::error_stack.Pop()) return std::unexpected(*e);
   /* History Buffer */
   const std::uint64_t history_buffer_size =
-      static_cast<std::uint64_t>(surface_config.width) * surface_config.height
+      static_cast<std::uint64_t>(render_width) * render_height
       * kHistoryPixelSize;
   ::wgpu::Buffer history_buffer =
       device.createBuffer([&] -> ::wgpu::BufferDescriptor {

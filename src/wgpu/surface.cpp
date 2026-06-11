@@ -19,7 +19,9 @@ std::expected<::wgpu::Surface, Error> CreateSurface(::wgpu::Instance& instance,
 std::expected<::wgpu::SurfaceConfiguration, Error> ConfigSurface(
     ::wgpu::Surface& surface,
     ::wgpu::Adapter& adapter,
-    ::wgpu::Device& device) {
+    ::wgpu::Device& device,
+    std::uint32_t width,
+    std::uint32_t height) {
   ::wgpu::SurfaceCapabilities surface_capabilities{};
   if (surface.getCapabilities(adapter, &surface_capabilities)
       != ::wgpu::Status::Success)
@@ -30,8 +32,8 @@ std::expected<::wgpu::SurfaceConfiguration, Error> ConfigSurface(
       [&] -> ::wgpu::SurfaceConfiguration {
     ::wgpu::SurfaceConfiguration config;
     config.nextInChain = nullptr;
-    config.width = global::kResolutionWidth;
-    config.height = global::kResolutionHeight;
+    config.width = width;
+    config.height = height;
     config.usage = WGPUTextureUsage_RenderAttachment;
     config.format = surface_capabilities.formats[0];
     config.viewFormatCount = 0;

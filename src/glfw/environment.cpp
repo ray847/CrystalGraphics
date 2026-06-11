@@ -8,7 +8,8 @@
 
 namespace crystal::graphics::glfw {
 
-std::expected<Env, Error> CreateEnv() {
+std::expected<Env, Error> CreateEnv(std::uint32_t window_width,
+                                    std::uint32_t window_height) {
   glfwSetErrorCallback([](int error_code, const char* msg) {
     global::error_stack.Push(
         Error{ std::format("GLFW error {}: {}", error_code, msg) });
@@ -19,8 +20,11 @@ std::expected<Env, Error> CreateEnv() {
   glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
   glfwWindowHint(GLFW_DECORATED, GLFW_FALSE);
   glfwWindowHint(GLFW_RESIZABLE, GLFW_FALSE);
-  auto window =
-      glfwCreateWindow(1920, 1080, "Crystal Graphics Window", nullptr, nullptr);
+  auto window = glfwCreateWindow(window_width,
+                                 window_height,
+                                 "Crystal Graphics Window",
+                                 nullptr,
+                                 nullptr);
   if (auto error = global::error_stack.Pop()) return std::unexpected(*error);
   return Env{ window };
 }

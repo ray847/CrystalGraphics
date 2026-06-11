@@ -1,6 +1,7 @@
 #ifndef CRYSTALGRAPHICS_SRC_GLFW_ENVIRONMENT_H_
 #define CRYSTALGRAPHICS_SRC_GLFW_ENVIRONMENT_H_
 
+#include <cstdint>
 #include <expected>
 #include <tuple>
 
@@ -36,10 +37,12 @@ class Env {
   /* Constructor */
   Env(GLFWwindow* window) : window_(window) {
   }
-  friend std::expected<Env, Error> CreateEnv();
+  friend std::expected<Env, Error> CreateEnv(std::uint32_t window_width,
+                                             std::uint32_t window_height);
 };
 
-std::expected<Env, Error> CreateEnv();
+std::expected<Env, Error> CreateEnv(std::uint32_t window_width,
+                                    std::uint32_t window_height);
 
 } // namespace crystal::graphics::glfw
 

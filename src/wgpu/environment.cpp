@@ -2,6 +2,7 @@
 
 #include <GLFW/glfw3.h>
 
+#include <algorithm>
 #include <webgpu/webgpu-raii.hpp>
 
 #include "adapter.h"
@@ -15,7 +16,9 @@
 
 namespace crystal::graphics::wgpu {
 
-std::expected<Env, Error> CreateEnv(GLFWwindow* window) {
+std::expected<Env, Error> CreateEnv(GLFWwindow* window, PathTraceConf conf) {
+  conf.trace_depth = std::clamp(conf.trace_depth, 1u, global::kTraceStackSize);
+
   /* Instance */
   auto instance = CreateInstance();
   if (!instance) return std::unexpected(instance.error());
@@ -32,11 +35,15 @@ std::expected<Env, Error> CreateEnv(GLFWwindow* window) {
   auto device = CreateDevice(*adapter);
   if (!device) return std::unexpected(device.error());
   /* Configure Surface */
-  auto surface_config = ConfigSurface(*surface, *adapter, *device);
+  auto surface_config = ConfigSurface(
+      *surface, *adapter, *device, conf.window_width, conf.window_height);
   if (!surface_config) return std::unexpected(surface_config.error());
   /* Resources */
   auto resources = CreateResources(
-      *surface_config, limits->minStorageBufferOffsetAlignment, *device);
+      conf.render_width,
+      conf.render_height,
+      limits->minStorageBufferOffsetAlignment,
+      *device);
   if (!resources) return std::unexpected(resources.error());
   auto surface_texture_view_res =
       CreateSurfaceTextureView(*resources->surface_texture);
@@ -67,7 +74,7 @@ std::expected<Env, Error> CreateEnv(GLFWwindow* window) {
                                                    *device);
   if (!compute_bindgroup) return std::unexpected(compute_bindgroup.error());
   auto compute_pipeline =
-      CreateComputePipeline(*compute_bindgroup_layouts, *device);
+      CreateComputePipeline(*compute_bindgroup_layouts, conf, *device);
   if (!compute_pipeline) return std::unexpected(compute_pipeline.error());
   /* Render */
   auto render_bindgroup_layout_res = CreateRenderBindGroupLayout(*device);
@@ -90,6 +97,7 @@ std::expected<Env, Error> CreateEnv(GLFWwindow* window) {
               std::move(*limits),
               std::move(*device),
               std::move(*surface),
+              conf,
               std::move(*resources),
               std::move(*compute_bindgroup_layouts),
               std::move(*compute_bindgroup),

@@ -64,7 +64,11 @@ std::expected<void, Error> Env::View(const SceneData& scene_data,
   ::wgpu::raii::CommandEncoder encoder{ std::move(*create_cmd_encoder_res) };
   /* Compute Pass */
   auto encode_compute_pass_res{ EncodeComputePass(
-      *encoder, *compute_pipeline_, compute_bindgroups_) };
+      *encoder,
+      *compute_pipeline_,
+      compute_bindgroups_,
+      conf_.render_width,
+      conf_.render_height) };
   if (!encode_compute_pass_res)
     return std::unexpected(encode_compute_pass_res.error());
   /* Render Pass */

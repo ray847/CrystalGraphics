@@ -6,8 +6,9 @@
 
 #include "glfw/environment.h"
 #include "wgpu/environment.h"
-#include "CrystalGraphics/error.h"
 #include "CrystalGraphics/camera.h"
+#include "CrystalGraphics/environment.h"
+#include "CrystalGraphics/error.h"
 #include "CrystalGraphics/scene.h"
 
 namespace crystal::graphics {
@@ -34,10 +35,10 @@ class Env {
   Env(glfw::Env&& glfw_env, wgpu::Env&& wgpu_env) :
       glfw_env_(std::move(glfw_env)), wgpu_env_(std::move(wgpu_env)) {
   }
-  friend std::expected<Env, Error> CreateEnv();
+  friend std::expected<Env, Error> CreateEnv(PathTraceConf conf);
 };
 
-std::expected<Env, Error> CreateEnv();
+std::expected<Env, Error> CreateEnv(PathTraceConf conf);
 
 }
 

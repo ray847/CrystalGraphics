@@ -2,6 +2,7 @@
 #define SRC_WGPU_SURFACE_H_
 
 #include <expected>
+#include <cstdint>
 
 #include <GLFW/glfw3.h>
 #include <glfw3webgpu.h>
@@ -19,7 +20,9 @@ std::expected<::wgpu::Surface, Error> CreateSurface(::wgpu::Instance& instance,
 std::expected<::wgpu::SurfaceConfiguration, Error> ConfigSurface(
     ::wgpu::Surface& surface,
     ::wgpu::Adapter& adapter,
-    ::wgpu::Device& device);
+    ::wgpu::Device& device,
+    std::uint32_t width,
+    std::uint32_t height);
 
 std::expected<::wgpu::TextureView, Error> NextTargetView(
     ::wgpu::Surface& surface);
