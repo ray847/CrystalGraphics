@@ -196,7 +196,6 @@ CrystalGraphics
 │   ├───doc.pdf             # technical document
 │   ├───example             # render examples
 │   ├───todo.md             # internal todo list
-│   ├───project_overview.md # this file
 │   └───...
 ├───include/CrystalGraphics # include source files
 ├───lib                     # dependent libraries
