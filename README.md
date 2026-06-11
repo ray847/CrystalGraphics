@@ -12,7 +12,10 @@ A "real-time" _spectural_ _pathtracing_ rendering engine written with `C++23` & 
 ### Standalone Tool
 
 ```shell
-$ ./main
+$ mkdir build
+$ cmake -S . -B build
+$ cmake --build build
+$ ./build/main
 
 CrystalGraphics Standalone Example
 This example will render a glTF file stationary for 5 seconds then start rotating.
