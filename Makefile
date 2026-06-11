@@ -2,7 +2,7 @@
 SHELL = powershell.exe
 .SHELLFLAGS = -NoProfile -ExecutionPolicy Bypass -Command
 
-WESL = C:/Users/xiach/.cargo/bin/wesl.exe
+WESL = wesl
 WESL_DIR = src/wgpu/shader
 OUTPUT_DIR = src/wgpu/shader
 

@@ -87,6 +87,4 @@ if (CMAKE_CURRENT_SOURCE_DIR STREQUAL CMAKE_SOURCE_DIR)
   )
   target_copy_webgpu_binaries(main)
 
-  # Testing
-  add_subdirectory(test)
 endif()

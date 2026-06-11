@@ -4,8 +4,8 @@ A "real-time" _spectural_ _pathtracing_ rendering engine written with `C++23` & 
 
 | | |
 |-|-|
-|![EnvironmentTest](doc/asset/EnvironmentTest.png)|![TransmissionRoughnessTest](doc/asset/TransmissionRoughnessTest.png)|
-|![EmissiveStrengthTest](doc/asset/EmissiveStrengthTest.png)|![DragonDispersion](doc/asset/DragonDispersion.png)|
+|![EnvironmentTest](doc/example/EnvironmentTest.png)|![TransmissionRoughnessTest](doc/example/TransmissionRoughnessTest.png)|
+|![EmissiveStrengthTest](doc/example/EmissiveStrengthTest.png)|![DragonDispersion](doc/example/DragonDispersion.png)|
 
 ## QuickStart
 
@@ -95,7 +95,13 @@ int main() {
 }
 ```
 
-## Features
+## Example
+
+Renders are available in [the example directory](doc/example/).
+
+**All glTF scene files used can be found in https://github.com/KhronosGroup/glTF-Sample-Assets.**
+
+## Feature
 
 * Spectral Pathtracing with Wavelength Sampling
 * CIE XYZ color space
@@ -143,7 +149,7 @@ target_link_libraries(YourTarget
 )
 ```
 
-## Api Document
+## API Document
 
 There are no deliberately written documents for the api, though a doxygen path is provided.
 
@@ -161,3 +167,46 @@ The document covers:
 * Light Transport Physics
 * Light Transport Modeling
 * Implementation Details & Decisions
+
+## Toolchain & Dependent Libraries
+
+**Builtin / Required**:
+* `C++23`: Primary Programming Language
+* `WebGPU` & `WGSL`: Render Backend
+* `WESL`: Modular WGSL Toolchain
+* `glfw`: Window Management
+* `stb`: Texture Processing
+* `cgltf`: glTF File Parsing
+* `glm`: Linear Algebra Library
+
+**Used in Development**
+* `wesl`: WESL Compiler
+* `doxygen`: API Document Generator
+* `g++` & `MinGW`: C++ Compiler (The code is intentionally written to be cross-compiler compatible though no testing have been done. Also compiler support for C++23 may vary.)
+* `clangd`: Language Server
+* `vscode` & `neovim`: Code Editor
+
+## Project Overview
+
+```shell
+CrystalGraphics
+├───doc                     # documents
+│   ├───asset               # project-wide assets
+│   ├───autogen             # generated doc files (e.g. Doxygen)
+│   ├───doc.pdf             # technical document
+│   ├───example             # render examples
+│   ├───todo.md             # internal todo list
+│   ├───project_overview.md # this file
+│   └───...
+├───include/CrystalGraphics # include source files
+├───lib                     # dependent libraries
+├───src                     # implementation source files
+├───.clang-format           # C++ formatting config file
+├───.gitignore
+├───CMakeLists.txt          # CMake build system file
+├───Doxyfile                # Doxygen config file
+├───main.cpp                # standalone executable source file
+├───Makefile                # WESL -> WGSL compilation
+└───README.md
+
+```
