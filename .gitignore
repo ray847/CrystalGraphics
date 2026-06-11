@@ -7,3 +7,4 @@ dxc
 asset/*
 *.wgsl
 __pycache__
+./doc/autogen

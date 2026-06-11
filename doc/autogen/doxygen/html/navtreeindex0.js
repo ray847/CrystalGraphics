@@ -1,0 +1,20 @@
+var NAVTREEINDEX0 =
+{
+"annotated.html":[0,0],
+"api_8h_source.html":[1,0,0,0,0],
+"camera_8h_source.html":[1,0,0,0,1],
+"classcrystal_1_1graphics_1_1_scene.html":[0,0,0,0,2],
+"classes.html":[0,1],
+"dir_b5db76be5863bc6d8a3e2aba2b9eff97.html":[1,0,0,0],
+"dir_d44c64559bbebec7f509842c48db8b23.html":[1,0,0],
+"environment_8h_source.html":[1,0,0,0,2],
+"error_8h_source.html":[1,0,0,0,3],
+"files.html":[1,0],
+"graphics_8h_source.html":[1,0,0,0,4],
+"index.html":[],
+"pages.html":[],
+"public_8h_source.html":[1,0,0,0,5],
+"scene_8h_source.html":[1,0,0,0,6],
+"structcrystal_1_1graphics_1_1_camera.html":[0,0,0,0,0],
+"structcrystal_1_1graphics_1_1_path_trace_conf.html":[0,0,0,0,1]
+};

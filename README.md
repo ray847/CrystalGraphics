@@ -12,6 +12,8 @@ A "real-time" _spectural_ _pathtracing_ rendering engine written with `C++23` & 
 ### Standalone Tool
 
 ```shell
+$ git clone https://github.com/ray847/CrystalGraphics.git --depth 1
+$ cd CrystalGraphics
 $ mkdir build
 $ cmake -S . -B build
 $ cmake --build build
@@ -139,6 +141,16 @@ target_link_libraries(YourTarget
   PRIVATE
   CrystalGraphics
 )
+```
+
+## Api Document
+
+There are no deliberately written documents for the api, though a doxygen path is provided.
+
+```
+$ git clone https://github.com/ray847/CrystalGraphics.git --depth 1
+$ cd CrystalGraphics
+$ doxygen Doxyfile
 ```
 
 ## Technical Document
