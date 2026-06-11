@@ -78,7 +78,9 @@ int main() {
 
 ### Standalone Build
 
-A standalone build will create a executable in your build directory that does the exact same thing as shown in the QuickStart section.
+A standalone build will create a executable in your build directory that renders a glTF scene with a few customizable arguments.
+
+### Library Integration
 
 The recommended way to integrate this library is with the `CMake` build system:
 
