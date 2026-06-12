@@ -27,7 +27,7 @@ In totality, these macro properties effect what happens when light hits the surf
 - Index of Refraction (a.k.a. IOR)
 - Microgeometry (Microgeometry doesn't technically effect how light is reflected / refracted on a micro level but its characteristcs determine the macro behavior of a surface.)
 
-The micro behavior of surface light transport can be described with #link(<eq:snells-law>)[Snell's Law] & #link(<eq:fresnel-equations>)[Fresnel Equations]:
+The micro behavior of surface light transport can be described with #link(<eq:snells-law>)[Snell's Law] & #link(<eq:fresnel-equations>)[Fresnel Equations] @hecht2017optics:
 
 #figure(
   cetz.canvas({
@@ -193,7 +193,7 @@ $
 $
 where function $V$ denotes the spectral response curve.
 
-For humans, which have 3 types of #link("https://en.wikipedia.org/wiki/Photoreceptor_cell")[photoreceptor cells], there would be 3 response curves (except for the visually impaired).
+For humans, which have 3 types of photoreceptor cells @photoreceptorCell, there would be 3 response curves (except for the visually impaired).
 
 #figure(
   image("asset/Cones_SMJ2_E.svg"),
@@ -217,9 +217,9 @@ For humans, which have 3 types of #link("https://en.wikipedia.org/wiki/Photorece
 #let curr = $"curr"$
 #let next = $"next"$
 
-This section talks about mathematical and physics tricks used in the implementation. This section _should not_ contain any implementation related information but rather some techniques/approximations that makes computing possible.
+This section talks about mathematical and physics tricks used in the implementation. This section _should not_ contain any implementation related information but rather some techniques/approximations that makes computing possible @pharr2023pbrt.
 
-/ The Rendering Equation:
+/ The Rendering Equation @kajiya1986rendering:
 
 $
   L(wo) =
@@ -384,7 +384,7 @@ $
 
 ==== GGX Microfacet Model
 
-The GGX (Ground Glass Unknown) model uses this equation as the *normal distribution function* (Trowbridge-Reitz):
+The GGX (Ground Glass Unknown) model uses this equation as the *normal distribution function* (Trowbridge-Reitz) @trowbridge1975average @walter2007microfacet:
 $
   D(norm_mu) = 1 / (pi alpha_x alpha_y cos^4theta_mu (1 + tan^2 theta_mu ((cos^2 phi_mu)/alpha_x^2 + (sin^2 phi_mu)/alpha_y^2))^2)
 $
@@ -393,7 +393,7 @@ $
 - $alpha_y in [0, 1]$: roughness along the y axis
 - $theta_mu, phi_mu$: inward angle
 
-As well as a *masking function* on the assumption that $G(omega, omega_mu) eq.triple G(omega)$ (Smith's approximation):
+As well as a *masking function* on the assumption that $G(omega, omega_mu) eq.triple G(omega)$ (Smith's approximation) @smith1967geometrical:
 $
   integral_hemisphere D(norm_mu) g(omega, norm_mu) max{0, omega dot norm_mu} dif norm_mu = omega dot norm = cos theta \
   => g(omega) = (cos theta) / (integral_hemisphere D(norm_mu) max{0, omega dot norm_mu} dif norm_mu) = 1 / (1 + Lambda(omega)) \
@@ -421,7 +421,7 @@ $
 
 Light sampling techniques only have a PDF since the BSDF used should come from the transporte models.
 
-== Multiple Importance Sampling (MIS)
+== Multiple Importance Sampling (MIS) @veach1995optimally
 
 == Spectrum
 
@@ -438,7 +438,7 @@ To be more specific, the conversion process from randiance from discretely sampl
     align: horizon,
     [RGB (Material)],
     sym.arrow.long,
-    wavelength,
+    [$wavelength$(wavelength)],
     stack("Monte Carlo", sym.arrow.long, "Estimator"),
     [XYZ],
     sym.arrow.long,
@@ -491,7 +491,7 @@ $
 $
 
 #secondary[
-  source: https://en.wikipedia.org/wiki/CIE_1931_color_space
+  source: @cie1931ColorSpace
 ]
 
 = Implementation
@@ -501,49 +501,142 @@ $
 The pathtracing process is divided into the following steps:
 
 ```py
-void main:
+main:
   rays = camera.GenerateRays()
   for ray in rays:
-    Render(ray)
+    rgb = LuminanceToRGB(Render(ray))
 
 Luminance Render(ray):
+  luminance = 0
+  for i in range(SAMPLE_COUNT):
+    wavelength, prob = SampleWaveLength()
+    luminance += Illuminate(ray) / SAMPLE_COUNT / prob
   return Luminate(Trace(ray))
 
 Radiance Trace(ray):
   # 1. Hit Detection
-  hit_pos = ray.Hit(scene)
-  if not hit_pos.exist:
-    return 0
+  hit_info = ray.Hit(scene)
+  if not hit_info.hit:
+    return EnvironmentRadiance(ray.dir)
 
   # 2. Sample Ray Generation
-  generated_rays = generate(ray, hit_pos)
+  sample_rays = Sample(ray, hit_info)
 
   # 3. Sample Tracing (Recursion)
-  for generated_ray in generated_rays:
-    radiance_in[ray] = Trace(generated_ray)
+  sample_radiance = [0]
+  for sample_ray in sample_rays:
+    sample_radiance[sample_ray] = Trace(sample_ray)
 
   # 4. Integral Estimation
-  radiance_out = scatter(radiance_in)
+  radiance = collect(sample_rays, sample_radiance)
 
-  return travel(radiance_out)
+  return radiance
 ```
 
 == Hit Detection
 
-=== Bounding Volumn Hierarchy (BVH)
+Hit detection solves the first function in `Trace`: for a given ray, what is the closest visible surface point?
+To successfully continue the trace process, we need the following fields from hit detection:
+
+#grid(
+  columns: (1fr, 2fr),
+  gutter: 1em,
+  [`hit`], [whether the ray intersects any scene triangle],
+  [`dist`], [the world-space ray distance to the closest hit],
+  [`pos`], [the hit position $#raw("ray.pos") + #raw("dist") dot #raw("ray.dir")$],
+  [`shading_norm`], [the interpolated vertex normal transformed to world space],
+  [`geometry_norm`], [the triangle face normal transformed to world space],
+  [`material_idx` & `uvs`], [the material attached to the hit primitive & the texture uv coordinate],
+)
+
+=== Bounding Volume Hierarchy (BVH)
+
+The implementation uses a two-level bounding volume hierarchy:
+#align(center, rect[ray #sym.arrow TLAS #sym.arrow instance transform #sym.arrow BLAS #sym.arrow triangle])
+
+Both acceleration structures are binary trees built on the CPU using the same simple strategy.
+For a range of objects, compute the AABB of the whole range and the AABB of the object centers.
+If the range is small enough, emit a leaf.
+Otherwise choose the longest center-bounds axis and split the range at the median:
+
+$
+  "axis" = arg max_i (u_(b,i) - l_(b,i)), \
+  "mid" = floor((l + r) / 2)
+$
+
+On the GPU, traversal is iterative using a fixed stack size.
 
 ==== Top Level Acceleration Structure (TLAS)
 
+The TLAS represents object instances in world space.
+For each primitive, the CPU creates:
+
+#grid(
+  columns: (1fr, 2fr),
+  [`AABB`], [the primitive bounds transformed into world space],
+  [`inv_trans`], [the inverse world transform used to move rays into primitive-local space],
+  [`blas_root_idx`], [the root node for that primitive in the shared BLAS node array],
+  [`material_idx`], [the material used when this primitive is hit],
+)
+
+During traversal, a ray first tests TLAS node boxes with the slab AABB test.
+Interior nodes push their two children onto the stack.
+Leaf nodes transform the ray into local space:
+$
+  "pos"' = T^(-1) vec("pos", 1), \
+  "dir"' = T^(-1) vec("dir", 0)
+$
+Then the BLAS referenced by that instance is traversed.
+If the BLAS returns a hit closer than the current best distance, the TLAS traversal stores that hit's local normals, UVs, inverse transform, material index, and distance.
+
+After traversal, normals are transformed back to world space using the inverse-transpose transform:
+$
+  n_"world" = "normalize"((T^(-1))^T n_"local")
+$
+
 ==== Bottom Level Acceleration Structure (BLAS)
+
+The BLAS represents triangles in primitive-local space.
+Each primitive gets its own BLAS root, but all BLAS nodes and triangle indices are packed into contiguous GPU buffers.
+Interior BLAS nodes store the index of two adjacent children; leaf nodes store an index offset and a triangle count.
+Current leaves contain at most two triangles.
+
+For a leaf, the shader tests each triangle with the Moller-Trumbore ray-triangle intersection @moller1997fast:
+$
+  e_1 = v_1 - v_0, \
+  e_2 = v_2 - v_0, \
+  h = d times e_2, \
+  a = e_1 dot h
+$
+If $a$ is near zero, the ray is parallel to the triangle.
+Otherwise the barycentric coordinates $u$ and $v$ are computed and accepted only when:
+$
+  u >= 0, \
+  v >= 0, \
+  u + v <= 1, \
+  t > epsilon
+$
+The nearest accepted triangle becomes the BLAS hit.
+The shader interpolates the smooth normal and texture coordinates with the barycentric weights:
+$
+  w_0 = 1 - u - v, \
+  n = "normalize"(w_0 n_0 + u n_1 + v n_2), \
+  "uv" = w_0 "uv"_0 + u "uv"_1 + v "uv"_2
+$
+It also computes the geometric normal from the triangle edges:
+$
+  n_g = "normalize"((v_1 - v_0) times (v_2 - v_0))
+$
+The BLAS returns this local hit information to the TLAS, which converts it into the final world-space `HitInfo`.
 
 == Sample Ray Generation
 
 The generation of sampling rays is done with the knowledge of the material of the hit position, as tracing them are *very expensive*.
-Knowing the material, we can make much higher quality samples with certain probability distributions that reduce noise and make life easier for the `Scatter` function (the integral estimator).
+Knowing the material, we can make much higher quality samples with certain probability distributions that reduce noise and make life easier for the `collect` function (the integral estimator).
 
 == GL Transmission Format (glTF)
 
-The glTF format is used as the accepted file format.
+The glTF format is used as the accepted file format @khronosGltf20.
 Inorder to perform the physics based rendering techniuqes from @physics-light_transport, we need to use the material information provided by the file format to determine which scatter model or combination of models to use. In addition, we also need to translate the material information to physics metrics to perform precise calculations. It is helpful to think of the process into 2 steps:
 #align(center, rect[glTF material #sym.arrow physics properties #sym.arrow reflection models])
 
@@ -571,66 +664,81 @@ Inorder to perform the physics based rendering techniuqes from @physics-light_tr
     `volume`,
   ),
 )
-source: https://www.khronos.org/gltf/pbr/
+source: @khronosGltfPbr
 
-We have this table that shows how physics properties derive from the material information:
+Every glTF color used by the material decoder is reconstructed into a scalar spectral value at that wavelength.
+
+We have this table that shows how physics properties derive from the material information for the sampled wavelength:
 
 #table(
   columns: (1fr, 2fr),
   table.header([Physics Property (Notation)], [Formula]),
-  [Diffuse Reflectance ($R$)], $"Smits Reconstruction" dot (1 - #raw("metallic")) dot (1 - #raw("transmission"))$,
+  [Spectral Reflectance ($rho(lambda)$)], $"Smits Reconstruction"(#raw("base color"), lambda)$,
+
+  [Diffuse Reflectance ($R_d(lambda)$)], $(1 - #raw("metallic")) dot (1 - #raw("transmission")) dot rho(lambda)$,
 
   [ior ($eta$)],
-  $eta & = n + k i, \
+  $eta(lambda) & = n(lambda) + k(lambda) i, \
   "where" & cases(
-    n = cases(#raw("ior") "(w extension)", 1.5),
-    k_i = #raw("metallic") dot sqrt((4n) / (1 - i / (r + b + g)) - (n + 1)^2)
-  ),
-  \
-  & (i in {r, g, b} and vec(r, g, b) = #raw("base color"))$,
+    n(lambda) = cases(
+      #raw("ior") + (#raw("ior") - 1) dot #raw("dispersion") / 20 dot (523655 / lambda^2 - 1.5168)\, &"dielectric",
+      #raw("ior")\, &"conductor",
+    ),
+    k(lambda) = #raw("metallic") dot sqrt((4 n(lambda)) / (1 - rho(lambda)) - (n(lambda) + 1)^2)
+  )$,
 
   [Microfacet Roughness ($alpha = alpha_x = alpha_y$)], $#raw("roughness")^2$,
+
+  [Transmission ($T$)], $#raw("transmission")$,
+
+  [Emission ($E(lambda)$)], $"Smits Reconstruction"(#raw("emissive"), lambda)$,
 )
 
 #secondary[
-  Since metal ior varies meaningfully based on the wavelength, we are actually interested in ior values on seperate rgb channels. The ior approximation is inferred from the assumption that:
-  - A non-metallic ($#raw("metallic") = 0$) material should have the normal non-complex fresnel reflectance across all rgb channels:
+  Since material evaluation happens at one sampled wavelength, the RGB base color is not treated as three independent IOR channels.
+  It is first converted to $rho(lambda)$ using the Smits RGB-to-spectrum reconstruction, and the metallic imaginary IOR is inferred from that spectral reflectance.
+  The approximation is inferred from the assumption that:
+  - A non-metallic ($#raw("metallic") = 0$) material should have the normal non-complex Fresnel reflectance:
   $
-    F_(0, r) = F_(0, g) = F_(0, b) =
-    F_0 |_(#raw("metallic") = 0) =
-    ((eta - 1) / (eta + 1))^2
+    F_0 |_(#raw("metallic") = 0) = ((n - 1) / (n + 1))^2
   $
-  - A fully metallic ($#raw("metallic") = 1$) material should have the fresnel reflectance equal to the base color:
+  - A fully metallic ($#raw("metallic") = 1$) material should have Fresnel reflectance equal to the reconstructed spectral base color:
   $
-    lr(vec(F_(0, r), F_(0, g), F_(0, b))|)_(#raw("metallic") = 1) = #raw("base color") \
-    => F_(0, r) + F_(0, g) + F_(0, b) = 1.0
+    F_0(lambda)|_(#raw("metallic") = 1) = rho(lambda)
   $
   Therefore we can use this as the approximation:
   $
-    #h(1fr) k_i & = sqrt((4n) / (1 - #raw("base color") _i) - (n + 1)^2), \
-                & "and" \
-            eta & = n + #raw("metallic") dot k i
+    #h(1fr) k(lambda) & = sqrt((4n(lambda)) / (1 - rho(lambda)) - (n(lambda) + 1)^2), \
+                      & "and" \
+          eta(lambda) & = n(lambda) + #raw("metallic") dot k(lambda) i
   $
-  Inference:$ F_(0, i)|_(#raw("metallic") = 1) =
-  #raw("base color") _i     & = ((eta - 1) / (eta + 1))^2 \
-      #raw("base color") _i & =((n + k_i i - 1) / (n + k_i i + 1))^2 = ((n - 1)^2 + k_i^2) / ((n + 1)^2 + k_i^2) \
-  1 - #raw("base color") _i & = ((n + 1)^2 - (n - 1)^2) / ((n + 1)^2 + k_i^2) = (4n) / ((n + 1)^2 + k_i^2) \
-                      k_i^2 & = (4n) / (1 - #raw("base color") _i) - (n + 1)^2 \ $
+  Explanation:$ F_0(lambda)|_(#raw("metallic") = 1) =
+  rho(lambda)     & = ((eta(lambda) - 1) / (eta(lambda) + 1))^2 \
+      rho(lambda) & = ((n + k i - 1) / (n + k i + 1))^2 = ((n - 1)^2 + k^2) / ((n + 1)^2 + k^2) \
+  1 - rho(lambda) & = ((n + 1)^2 - (n - 1)^2) / ((n + 1)^2 + k^2) = (4n) / ((n + 1)^2 + k^2) \
+              k^2 & = (4n) / (1 - rho(lambda)) - (n + 1)^2 \ $
 ]
 
-/ Smits Reconstruction<smits-reconstruction>:
+/ Smits Reconstruction<smits-reconstruction> @smits1999rgb:
 
-Suppose ${c_1, c_2, c_3} in {r, g, b} and c_1 <= c_2 <= c_3$,
+Suppose ${c_1, c_2, c_3} = {r, g, b} and c_1 <= c_2 <= c_3$,
 
 $
   "Smits"(wavelength) = c_1 S_"white"(wavelength) + (c_2 - c_1)S_(c_2 times c_3)(wavelength) + (c_3 - c_2)S_(c_3)(wavelength)
 $
 where $S_c$ denote the spectral curve for color $c$ and $c_2 times c_3$ denote the color you get by mixing $c_2$ and $c_3$.
-The actual curve data is extracted from the `colour` python package.
+The actual curve data is extracted from the `colour` python package @colourScience.
 
-== Spectrum Data Conversion
+== Spectrum
 
-We use an approximation of the CIE color matching functions in @fig:CIE_1931_XYZ_Color_Matching_Functions for computation:
+The renderer does not trace three RGB channels independently.
+For each path sample it first chooses one wavelength $lambda in [380 "nm", 720 "nm"]$ using the CIE XYZ matching functions as an importance distribution:
+$
+  p(lambda) = (overline(x)(lambda) + overline(y)(lambda) + overline(z)(lambda))
+  / integral_380^720 (overline(x)(lambda) + overline(y)(lambda) + overline(z)(lambda)) dif lambda
+$
+
+We use an approximation of the CIE color matching functions in @fig:CIE_1931_XYZ_Color_Matching_Functions for computation @wyman2013cie:
 
 $
   overline(x)(wavelength) & = 0.362 G_s (wavelength; 442.0, 1 / 0.0624, 1 / 0.0374) \
@@ -649,7 +757,4 @@ $
   )
 $
 
-#secondary[
-  source: Simple Analytic Approximations
-  to the CIE XYZ Color Matching Functions
-]
+#bibliography("references.bib")
